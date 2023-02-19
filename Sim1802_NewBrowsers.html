@@ -1,0 +1,2597 @@
+<!DOCTYPE html>
+<html>
+
+
+<head>
+
+<style>
+	table, tr, th, td {
+		border: 1px solid black;
+	}
+
+	td {
+		font-family: monospace;
+		font-weight: bold;
+		font-size: 110%;
+		padding-top: 3px;
+		padding-left: 5px;
+		padding-right: 5px;
+		padding-bottom: 1px;
+	}
+
+	.NOTYET {
+		background-color: purple;
+		color: white;
+	}
+
+	.PC_and_DP {
+		background-color: purple;
+		color: white;
+	}
+	.program_counter {
+		background-color: red;
+		color: white;
+	}
+	.data_pointer {
+		background-color: blue;
+		color: white;
+	}
+	.QLED_ON {
+		font-size: 200%;
+		background-color: black;
+		color: #FF4444;
+	}
+	.QLED_OFF {
+		font-size: 200%;
+		background-color: black;
+		color: #550000;
+	}
+	.SEV_SEG {
+		font-family: monospace;
+		font-size: 200%;
+		background-color: black;
+		color: #FF4444;
+	}
+	span.Next_Instr {
+		font-family: monospace;
+		font-weight: bold;
+		font-size: 110%;
+		color: #FF4444;
+		padding-top: 3px;
+		padding-left: 5px;
+		padding-right: 5px;
+		padding-bottom: 1px;
+	}
+	.match {
+		font-size: 200%;
+		color: #00AA00;
+	}
+	.differ {
+		font-size: 200%;
+		color: #AA0000;
+	}
+</style>
+
+<script>
+
+function replaceAll ( s, t, r ) {
+	last_s = s;
+	do {
+	  new_s = last_s.replace(t,r);
+	} while ( new_s != last_s );
+	return ( new_s );
+}
+
+
+rd = 0; rdf = 1; rb = 0; rp = 0; rx = 0;
+rn = 0; ri = 0; rt = 0; ra = 0; rie = 1; rq = 0;
+ref1 = 1; ref2 = 1; ref3 = 1; ref4 = 1;   // These should be settings
+rr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+is_idle = true;
+
+update_while_running = true;
+show_led_output = true;
+
+mem = new Array ( 0x10000 );
+for (i=0; i<=0xFFFF; i++) {
+	mem[i] = 0;
+}
+mem_first_shown = 0;
+mem_num_shown = 16;
+mem_pc_tracked = true;
+mem_pc_centered = false;
+
+in1 = [0x10,0x01,0x10,0x01,0x10];
+in1index = 0;
+out1 = [0x10,0x01,0x10,0x01,0x10];
+
+in2 = [0x20,0x02,0x20,0x02,0x20];
+in2index = 0;
+out2 = [0x20,0x02,0x20,0x02,0x20];
+
+in3 = [0x30,0x03,0x30,0x03,0x30];
+in3index = 0;
+out3 = [0x30,0x03,0x30,0x03,0x30];
+
+in4 = [0x40,0x04,0x40,0x04,0x40];
+in4index = 0;
+out4 = [0x40,0x04,0x40,0x04,0x40];
+
+in5 = [0x50,0x05,0x50,0x05,0x50];
+in5index = 0;
+out5 = [0x50,0x05,0x50,0x05,0x50];
+
+in6 = [0x60,0x06,0x60,0x06,0x60];
+in6index = 0;
+out6 = [0x60,0x06,0x60,0x06,0x60];
+
+in7 = [0x70,0x07,0x70,0x07,0x70];
+in7index = 0;
+out7 = [0x70,0x07,0x70,0x07,0x70];
+
+used_ops = new Array ( 0x100 );
+for (i=0; i<=0xFF; i++) {
+	used_ops[i] = 0;
+}
+
+
+function hex1 ( v ) {
+	return ( (v % 16).toString(16).toUpperCase() );
+}
+
+function hex2 ( v ) {
+	h = (v % 256).toString(16).toUpperCase();
+	while (h.length < 2) {
+		h = "0" + h;
+	}
+	return ( h );
+}
+
+function hex4 ( v ) {
+	h = (v % 65536).toString(16).toUpperCase();
+	while (h.length < 4) {
+		h = "0" + h;
+	}
+	return ( h );
+}
+
+function power_on() {
+	is_idle = true;
+	rd = 0; rdf = 1; rb = 0; rp = 0; rx = 0;
+	rn = 0; ri = 0; rt = 0; ra = 0; rie = 1; rq = 0;
+	ref1 = 1; ref2 = 1; ref3 = 1; ref4 = 1;
+	rr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	// Set random values for various registers and memory
+	rd = Math.round(Math.random() * 256) % 256;
+	for (i=0; i<rr.length; i++) {
+		rr[i] = Math.round(Math.random() * 65536) % 65536;
+	}
+	for (i=0; i<mem.length; i++) {
+		mem[i] = Math.round(Math.random() * 256) % 256;
+	}
+	// Reset the CPU to initialize a few registers in a known state
+	cpu_reset();
+	// Put the values into the HTML document
+	show_reg();
+	show_Q_LED();
+	show_mem();
+	show_instr();
+	show_out();
+	show_out_LED();
+	get_in();
+}
+
+function cpu_reset() {
+	out4 = [];
+	in4index = 0;
+	is_idle = false;
+	running = true;
+	stopRunning = true;
+	run_stop();
+	stop();
+	run_counter = 1;
+	mainLoop.nCounter = 0;
+	ri = 0; rn = 0; rq = 0; rie = 1; rx = 0; rp = 0; rr[0] = 0;
+	show_reg();
+	show_Q_LED();
+	show_mem();
+	show_instr();
+	show_out();
+	show_out_LED();
+	get_in();
+}
+
+function show_reg() {
+	html = ""
+	for (i=0; i<rr.length; i++) {
+		addr = i;
+		data = rr[addr];
+		addrs = hex1(addr);
+		datas = hex4(data);
+		if ( (i == rp) && (i == rx) ) {
+			cls = ' class="PC_and_DP"';
+		} else if (i == rp) {
+			cls = ' class="program_counter"';
+		} else if (i == rx) {
+			cls = ' class="data_pointer"';
+		} else {
+			cls = '';
+		}
+		html += '<tr><td' + cls + '>R' + addrs + '</td><td' + cls + ' id="R' + addrs + '">' + datas + '</td></tr>\n';
+	}
+	document.getElementById('General Registers').innerHTML = html;
+	document.getElementById('D' ).innerHTML  = hex2(rd);
+	document.getElementById('DF').innerHTML  = hex1(rdf);
+	document.getElementById('B' ).innerHTML  = hex1(rb);
+	document.getElementById('P' ).innerHTML  = hex1(rp);
+	document.getElementById('X' ).innerHTML  = hex1(rx);
+	document.getElementById('I' ).innerHTML  = hex1(ri);
+	document.getElementById('N' ).innerHTML  = hex1(rn);
+	document.getElementById('T' ).innerHTML  = hex1(rt);
+	document.getElementById('A' ).innerHTML  = hex1(ra);
+	document.getElementById('IE').innerHTML  = hex1(rie);
+	document.getElementById('Q' ).innerHTML  = hex1(rq);
+}
+
+function show_Q_LED() {
+	if (rq) {
+		document.getElementById('QLED' ).setAttribute ( 'class', "QLED_ON" );
+	} else {
+		document.getElementById('QLED' ).setAttribute ( 'class', "QLED_OFF" );
+	}
+}
+
+function show_mem() {
+	html = ""
+	if (mem_pc_centered) {
+		// Force Memory to show PC as centered
+		mem_first_shown = rr[rp] + 1 - (mem_num_shown / 2);
+		if (mem_first_shown < 0) {
+			mem_first_shown = 0;
+		}
+	} else if (mem_pc_tracked) {
+		// Force Memory location to make PC visible
+		if (rr[rp] < mem_first_shown) {
+			mem_first_shown = rr[rp];
+		} else if (rr[rp] >= (mem_first_shown+mem_num_shown)) {
+			mem_first_shown = rr[rp] - (mem_num_shown-1);
+		}
+		if (mem_first_shown < 0) {
+			mem_first_shown = 0;
+		}
+	}
+	for (i=0; i<mem_num_shown; i++) {
+		addr = mem_first_shown+i;
+		data = mem[addr];
+		addrs = addr.toString(16).toUpperCase();
+		datas = data.toString(16).toUpperCase();
+		cls = "";
+		if ( (addr == rr[rp]) && (addr == rr[rx]) ) {
+			cls = ' class="PC_and_DP"';
+		} else if (addr == rr[rp]) {
+			cls = ' class="program_counter"';
+		} else if (addr == rr[rx]) {
+			cls = ' class="data_pointer"';
+		} else {
+			cls = '';
+		}
+		while (addrs.length < 4) { addrs = '0' + addrs; }
+		while (datas.length < 2) { datas = '0' + datas; }
+		html += '<tr><td' + cls + '>' + addrs + '</td><td' + cls + ' id="M' + addrs + '">' + datas + '</td></tr>\n';
+	}
+	document.getElementById('Memory').innerHTML = html;
+}
+
+function get_state_str() {
+	state_str = "P:" + hex1(rp) + " PC:" + hex4(rr[rp]) + " X:" + hex1(rx) + " D:" + hex2(rd) + " DF:" + hex1(rdf);
+	state_str += " [ ";
+	for (i=0; i<16; i++) {
+		state_str += hex4(rr[i]) + " ";
+	}
+	state_str += "]";
+	return ( state_str );
+}
+
+function get_comp_min_str() {
+	state_str  = " PC=" + hex4(rr[rp]) + " Instruction=" + hex2(mem[rr[rp]]) + "\n";
+	state_str += "   P=" + hex1(rp) + " X=" + hex1(rx) + " D=" + hex2(rd) + " DF=" + hex1(rdf) + " Q=" + hex1(rq) + "\n";
+	state_str += "   R=[ ";
+
+	for (i=0; i<16; i++) {
+		if ( (i > 0) && ((i % 4) == 0) ) state_str += " ";
+		state_str += hex4(rr[i]) + " ";
+	}
+	state_str += "]\n";
+	return ( state_str );
+}
+
+
+inst_proc_table = [ // InstructionName, OpCode, NumAdditionalBytes
+	[ "IDL",  "00", 0 ],
+	[ "LDN",  "0N", 0 ],
+	[ "INC",  "1N", 0 ],
+	[ "DEC",  "2N", 0 ],
+	[ "BR",   "30", 1 ],
+	[ "BQ",   "31", 1 ],
+	[ "BZ",   "32", 1 ],
+	[ "BPZ",  "33", 1 ],
+	[ "BGE",  "33", 1 ],
+	[ "BDF",  "33", 1 ],
+	[ "B1",   "34", 1 ],
+	[ "B2",   "35", 1 ],
+	[ "B3",   "36", 1 ],
+	[ "B4",   "37", 1 ],
+	[ "NBR",  "38", 0 ],
+	[ "SKP",  "38", 0 ],
+	[ "BNQ",  "39", 1 ],
+	[ "BNZ",  "3A", 1 ],
+	[ "BL",   "3B", 1 ],
+	[ "BM",   "3B", 1 ],
+	[ "BNF",  "3B", 1 ],
+	[ "BN1",  "3C", 1 ],
+	[ "BN2",  "3D", 1 ],
+	[ "BN3",  "3E", 1 ],
+	[ "BN4",  "3F", 1 ],
+	[ "LDA",  "4N", 0 ],
+	[ "STR",  "5N", 0 ],
+	[ "IRX",  "60", 0 ],
+	[ "OUT",  "61", 0 ],
+	[ "ILL",  "68", 0 ],
+	[ "INP",  "69", 0 ],
+	[ "RET",  "70", 0 ],
+	[ "DIS",  "71", 0 ],
+	[ "LDXA", "72", 0 ],
+	[ "STXD", "73", 0 ],
+	[ "ADC",  "74", 0 ],
+	[ "SDB",  "75", 0 ],
+	[ "RSHR", "76", 0 ],
+	[ "SHRC", "76", 0 ],
+	[ "SMB",  "77", 0 ],
+	[ "SAV",  "78", 0 ],
+	[ "MARK", "79", 0 ],
+	[ "REQ",  "7A", 0 ],
+	[ "SEQ",  "7B", 0 ],
+	[ "ADCI", "7C", 1 ],
+	[ "SDBI", "7D", 1 ],
+	[ "RSHL", "7E", 0 ],
+	[ "SHLC", "7E", 0 ],
+	[ "SMBI", "7F", 1 ],
+	[ "GLO",  "8N", 0 ],
+	[ "GHI",  "9N", 0 ],
+	[ "PLO",  "AN", 0 ],
+	[ "PHI",  "BN", 0 ],
+	[ "LBR",  "C0", 2 ],
+	[ "LBQ",  "C1", 2 ],
+	[ "LBZ",  "C2", 2 ],
+	[ "LBDF", "C3", 2 ],
+	[ "NOP",  "C4", 0 ],
+	[ "LSNQ", "C5", 0 ],
+	[ "LSNZ", "C6", 0 ],
+	[ "LSNF", "C7", 0 ],
+	[ "NLBR", "C8", 0 ],
+	[ "LSKP", "C8", 0 ],
+	[ "LBNQ", "C9", 2 ],
+	[ "LBNZ", "CA", 2 ],
+	[ "LBNF", "CB", 2 ],
+	[ "LSIE", "CC", 0 ],
+	[ "LSQ",  "CD", 0 ],
+	[ "LSZ",  "CE", 0 ],
+	[ "LSDF", "CF", 0 ],
+	[ "SEP",  "DN", 0 ],
+	[ "SEX",  "EN", 0 ],
+	[ "LDX",  "F0", 0 ],
+	[ "OR",   "F1", 0 ],
+	[ "AND",  "F2", 0 ],
+	[ "XOR",  "F3", 0 ],
+	[ "ADD",  "F4", 0 ],
+	[ "SD",   "F5", 0 ],
+	[ "SHR",  "F6", 0 ],
+	[ "SM",   "F7", 0 ],
+	[ "LDI",  "F8", 1 ],
+	[ "ORI",  "F9", 1 ],
+	[ "ANI",  "FA", 1 ],
+	[ "XRI",  "FB", 1 ],
+	[ "ADI",  "FC", 1 ],
+	[ "SDI",  "FD", 1 ],
+	[ "SHL",  "FE", 0 ],
+	[ "SMI",  "FF", 1 ]
+]
+
+function get_instr(hex) {
+	best_instr = "";
+	best_instr_index = -1;
+	// Start by looking for an exact match
+	for (i=0; i<inst_proc_table.length; i++) {
+		if (hex == inst_proc_table[i][1]) {
+			best_instr = inst_proc_table[i][0];
+			best_instr_index = i;
+		}
+	}
+	if (best_instr_index < 0) {
+		// No exact match, so look for a match of first digit only
+		for (i=0; i<inst_proc_table.length; i++) {
+			if (hex[0] == inst_proc_table[i][1][0]) {
+				if ( (hex[0] == '6') && ((hex[1] != '0') || (hex[0] != '8')) ) {
+					// This is either an input or an output instruction
+					if (hex == '61') { best_instr = 'OUT1'; best_instr_index = i; }
+					if (hex == '62') { best_instr = 'OUT2'; best_instr_index = i; }
+					if (hex == '63') { best_instr = 'OUT3'; best_instr_index = i; }
+					if (hex == '64') { best_instr = 'OUT4'; best_instr_index = i; }
+					if (hex == '65') { best_instr = 'OUT5'; best_instr_index = i; }
+					if (hex == '66') { best_instr = 'OUT6'; best_instr_index = i; }
+					if (hex == '67') { best_instr = 'OUT7'; best_instr_index = i; }
+					if (hex == '69') { best_instr = 'IN1'; best_instr_index = i; }
+					if (hex == '6A') { best_instr = 'IN2'; best_instr_index = i; }
+					if (hex == '6B') { best_instr = 'IN3'; best_instr_index = i; }
+					if (hex == '6C') { best_instr = 'IN4'; best_instr_index = i; }
+					if (hex == '6D') { best_instr = 'IN5'; best_instr_index = i; }
+					if (hex == '6E') { best_instr = 'IN6'; best_instr_index = i; }
+					if (hex == '6F') { best_instr = 'IN7'; best_instr_index = i; }
+				} else if (inst_proc_table[i][1][1] == 'N') {
+					best_instr = inst_proc_table[i][0] + " R" + hex[1];
+				} else {
+					best_instr = inst_proc_table[i][0];
+				}
+			}
+		}
+	}
+
+	if (best_instr_index >= 0) {
+		// Handle Immediate Operands of 1 or 2 bytes
+		if (inst_proc_table[best_instr_index][2] > 0) {
+			best_instr = best_instr + " " + hex2(mem[rr[rp]+1]);
+			if (inst_proc_table[best_instr_index][2] > 1) {
+				best_instr = best_instr + " " + hex2(mem[rr[rp]+2]);
+			}
+		}
+	}
+	return ( best_instr );
+}
+
+function show_instr() {
+	instr = get_instr(hex2(mem[rr[rp]]));
+	num_blanks = 9-instr.length;
+	for (i=0; i<num_blanks; i++) {
+		instr = instr + "&nbsp;";
+	}
+	// instr = "[ " + instr + "]"
+	document.getElementById('Next_Instr').innerHTML = instr;
+}
+
+function zero_mem() {
+	for (i=0; i<mem.length; i++) {
+		mem[i] = 0;
+	}
+	show_mem();
+	show_instr();
+}
+
+function zero_reg() {
+	for (i=0; i<rr.length; i++) {
+		rr[i] = 0;
+	}
+	rd = 0;
+	rdf = 0;
+	show_reg();
+	show_Q_LED();
+}
+
+function load_prog_with_addresses(hex_code) {
+	// This function handles addr:data format (no checksums!!)
+	// Ensure that each line is terminated with a single "\n"
+	text = hex_code.replaceAll("\r", "\n");
+	while (text.indexOf("\n\n") >= 0) {
+		text = text.replaceAll("\n\n", "\n");
+	}
+	// Split the text into an array of lines
+	lines = text.split("\n");
+	// Process the lines into memory
+	next_mem_loc = 0;
+	for (l=0; l<lines.length; l++) {
+		line = lines[l].replace(/\s+/g,''); // Remove all white space
+		if (line.indexOf(":") >= 0) {
+			// This line has either an address or is in Intel Hex format
+			if (line[0] == ":") {
+				// This is Intel Hex format which starts with a ":"
+				// ":"    = First byte of line is ":"
+				// "BC"   = Byte count of DATA consisting of two hex digits (max bytes/line = 255)
+				// "ADDB" = Four bytes (4 hex digits = 16 bits) of address
+				// "RT"   = Two bytes (2 hex digits = 8 bits) of Record Type (00=Data, 01=EOF, 02=ExtSegAdd, 03=StrtSegAdd, 04=ExtLinAdd, 05=StrtLinAdd,
+				// "DATA" = This is the actual data of length "ByteCount"
+				// "CS"   = Two bytes (2 hex digits = 8 bits) of checksum 2's complement of sum of bytes
+				bcnt = line.substr(1,2);
+				ad = line.substr(3,4);
+				rectyp = line.substr(7,2);
+				bytecount = parseInt ( bcnt, 16 );
+				addr = parseInt ( ad, 16 );
+				rtyp = parseInt ( rectyp, 16 );
+				dt = line.substr(9,bytecount*2);
+				cs = line.substr(9+(bytecount*2),2);
+				// console.log ( "Line: " + line );
+				// console.log ( "IntHex: " + bcnt + "," + ad + "," + rectyp + "," + dt + "," + cs );
+				next_mem_loc = addr;
+				if (rtyp == 0) {
+					line = dt;
+				} else {
+					line = "";
+				}
+			} else {
+				// This line just has an address, so update the next mem location
+				addr = parseInt ( line.substr(0,line.indexOf(":")).trim(), 16 );
+				next_mem_loc = addr;
+				// Remove the address to allow subsequent code to continue parsing
+				line = line.substr(line.indexOf(":")+1);
+			}
+		}
+		// The line does not have an address (or it was removed)
+		for (i=0; i<(line.length/2); i++) {
+			mem[next_mem_loc] = parseInt(line.substr(i*2,2),16);
+			next_mem_loc += 1;
+		}
+	}
+}
+
+function load_prog() {
+	hex_code = document.getElementById("Hex Code").value;
+	if (hex_code.indexOf(":") >= 0) {
+		load_prog_with_addresses(hex_code);
+	} else {
+		// Load it as plain hex code
+		text = hex_code.replace(/\s+/g,''); // Remove all white space
+		// mem = [];
+		for (i=0; i<(text.length/2); i++) {
+			mem[i] = parseInt(text.substr(i*2,2),16);
+		}
+	}
+	mem_first_shown = 0;
+	mem_num_shown = Math.min(16,mem.length);
+	cpu_reset()
+	show_mem();
+	show_instr();
+	show_out();
+	show_out_LED();
+	get_in();
+}
+
+function update_enable_disable() {
+	update_while_running = !update_while_running;
+	if (update_while_running) {
+		document.getElementById('UpdateEnDis').innerHTML = 'Update <b><u>On</u></b>/Off';
+		show_reg();
+		show_Q_LED();
+		show_mem();
+		show_instr();
+		show_out();
+		show_out_LED();
+	} else {
+		document.getElementById('UpdateEnDis').innerHTML = 'Update On/<b><u>Off</u></b>';
+	}
+}
+
+function toggle_led_out() {
+	show_led_output = !show_led_output;
+	if (show_led_output) {
+		document.getElementById("LED_BUTTON").innerHTML = "&#x2600;"; // Enabled
+	} else {
+		document.getElementById("LED_BUTTON").innerHTML = "&#x26AC;";
+	}
+}
+
+function toggle_pc_tracked() {
+	if (document.getElementById ("TrackedPC").checked) {
+		mem_pc_tracked = true;
+	} else {
+		mem_pc_tracked = false;
+	}
+	show_mem();
+}
+
+function toggle_pc_centered() {
+	if (document.getElementById ("CenterPC").checked) {
+		mem_pc_centered = true;
+	} else {
+		mem_pc_centered = false;
+	}
+	show_mem();
+}
+
+function disable_pc_tracking() {
+	document.getElementById ("TrackedPC").checked = false;
+	document.getElementById ("CenterPC").checked = false;
+	mem_pc_tracked = false;
+	mem_pc_centered = false;
+}
+
+function set_mem_top() {
+	// <input type="text" id="mem_top_req" size="3">
+	mem_top_req_text = document.getElementById ("mem_top_req").value.trim();
+	mem_top_req = parseInt(mem_top_req_text,16);
+	if (mem_top_req < 0) mem_top_req = 0;
+	if (mem_top_req > mem.length-mem_num_shown) mem_top_req = mem.length-mem_num_shown;
+	disable_pc_tracking();
+	mem_first_shown = mem_top_req;
+	show_mem();
+}
+
+function mem_top() {
+	disable_pc_tracking();
+	mem_first_shown = 0;
+	show_mem();
+}
+
+function mem_pgu() {
+	disable_pc_tracking();
+	mem_first_shown = mem_first_shown - mem_num_shown;
+	if (mem_first_shown < 0) {
+		mem_first_shown = 0;
+	}
+	show_mem();
+}
+
+function mem_up() {
+	disable_pc_tracking();
+	if (mem_first_shown > 0) {
+		mem_first_shown = mem_first_shown - 1;
+	}
+	show_mem();
+}
+
+function mem_dn() {
+	disable_pc_tracking();
+	if (mem_first_shown < (mem.length-mem_num_shown)) {
+		mem_first_shown = mem_first_shown + 1;
+	}
+	show_mem();
+}
+
+function mem_pgd() {
+	disable_pc_tracking();
+	mem_first_shown = mem_first_shown + mem_num_shown;
+	if (mem_first_shown > (mem.length-mem_num_shown)) {
+		mem_first_shown = mem.length-mem_num_shown;
+	}
+	show_mem();
+}
+
+function mem_bot() {
+	disable_pc_tracking();
+	mem_first_shown = mem.length-mem_num_shown
+	show_mem();
+}
+
+function clear_out() {
+	out4 = [];
+	document.getElementById('Out4').value = "";
+}
+
+function show_out() {
+	text = ""
+	for (i=0; i<out4.length; i++) {
+		text = text + hex2(out4[i]);
+	}
+	document.getElementById('Out4').value = text;
+}
+
+function show_out_LED() {
+	if (out4.length < 1) {
+		document.getElementById('SevSegH').innerHTML = '-';
+		document.getElementById('SevSegL').innerHTML = '-';
+	} else {
+		out = hex2(out4[out4.length-1]);
+		document.getElementById('SevSegH').innerHTML = out[0];
+		document.getElementById('SevSegL').innerHTML = out[1];
+	}
+}
+
+function get_in() {
+	hex_in = document.getElementById('In4');
+	text = hex_in.value.replace(/\s+/g,''); // Remove all white space
+	in4 = [];
+	in4index = 0;
+	for (i=0; i<(text.length/2); i++) {
+		in4.push ( parseInt(text.substr(i*2,2),16) );
+	}
+	// console.log ( "get_in got: " + in4 );
+}
+
+consoleDebug = false;
+stopRunning = false;
+function mainLoop()
+{
+   if (consoleDebug) console.log("sim_elf: enter mainLoop");
+
+   if (mainLoop.bInMainLoop)
+      return;
+
+   mainLoop.bInMainLoop = true;
+   mainLoop.bStayInLoop = false;    // by default, release main loop
+
+   if (typeof mainLoop.nCounter == "undefined")
+      mainLoop.nCounter = 0;
+
+   if (!stopRunning) {
+	   exec_next();
+   }
+
+   ++mainLoop.nCounter;
+
+   mainLoop.bStayInLoop = true;
+
+   if (stopRunning)
+	  mainLoop.bStayInLoop = false;
+
+   mainLoop.bInMainLoop = false;
+
+   if (mainLoop.bStayInLoop)
+      setTimeout ("mainLoop()", 1); // Call mainLoop 1ms from now
+
+   if (consoleDebug) console.log("sim_elf: exit mainLoop");
+
+   return mainLoop.bStayInLoop;
+} // mainLoop
+
+running = false;
+run_counter = 1;
+function run_stop() {
+	running = !running;
+	if (running) {
+		document.getElementById('RunStop').innerHTML = "<u>Run</u>/Stop";
+		document.getElementById('RunStop').setAttribute("style", "background-color: #FF9999;");
+		run();
+	} else {
+		document.getElementById('RunStop').innerHTML = "Run/<u>Stop</u>";
+		document.getElementById('RunStop').setAttribute("style", "");
+		stop();
+		console.log ( "Opcodes Used:" );
+		for (i=0; i<16; i++) {
+			s = " " + hex2(i) + ":  ";
+			for (j=0; j<16; j++) {
+				s += " " + hex1(used_ops[(16*i)+j]);
+			}
+			console.log ( s + "\n" );
+		}
+		// console.log ( "Used:\n" + used_ops );
+	}
+}
+function run() {
+	stopRunning = false;
+	mainLoop.nCounter = 0;
+	mainLoop();
+}
+function stop() {
+	running = false;
+	mainLoop.bStayInLoop = false;
+	stopRunning = true;
+}
+
+function step() {
+	if (running == false) {
+		exec_next();
+		if (update_while_running) {
+			show_reg();
+			//show_Q_LED();
+			show_mem();
+			show_instr();
+			show_out();
+			//show_out_LED();
+			// get_in();
+		}
+		if (show_led_output) {
+			show_Q_LED();
+			show_out_LED();
+		}
+	}
+}
+
+// From COSMAC ELF Manual
+// 0x - Mostly LDN: Load D from N
+// 1x - INC R(N)
+// 2x - DEC R(N)
+// 3x - Branch (short) and skip
+// 4x - LDA: Load D from Address in RN and Advance
+// 5x - STR: Store D into Address at RN
+// 6x - IRX / Output / Input
+// 7x - Control, Arithmetic, SET/RST Q, Arithmetic
+// 8x - GLO: Get Low Byte of RN and put into D
+// 9x - GHI: Get High Byte of RN and put into D
+// Ax - PLO: Put D into Low Byte of RN
+// Bx - PHI: Put D into High Byte of RN
+// Cx - Branch (long), Skip (long), and NOP
+// Dx - SEP: Set Register "P" (program counter) to N
+// Ex - SEX: Set Register "X" (data pointer) to N
+// Fx - Logic and Arithmetic
+
+
+function exec_next() {
+	op_code = mem[rr[rp]];
+	used_ops[op_code] = 0x07;
+
+	if (!is_idle) {
+		if (update_while_running) {
+			dump_code_str = document.getElementById("dump_code").value;
+			dump_active = false;
+			if (dump_code_str.trim().startsWith("*")) {
+				dump_active = true;
+			} else {
+				dump_code = parseInt(dump_code_str,16);
+				if (op_code == dump_code) {
+					dump_active = true;
+				}
+			}
+			if (dump_active) {
+				dump_out_text = document.getElementById("dump_out").value;
+				// document.getElementById("dump_out").value = dump_out_text + '\n' + 'OpCd ' + hex2(op_code) + ': ' + get_state_str();
+				document.getElementById("dump_out").value = dump_out_text + '\n' + get_comp_min_str();
+			}
+		}
+	}
+
+	rn = op_code & 0x0F;
+	ri = (op_code >> 4) & 0x0F;
+	N = rn; // Use locally
+	I = ri; // Use locally
+	if (op_code == 0x00) { // IDL
+		// Idle instruction - Do nothing, just wait for an interrupt
+		is_idle = true;
+	} else if (I == 0x0) { // LDN - Load via N
+		rd = mem[rr[N]];
+		rr[rp] += 1;
+	} else if (I == 0x1) { // INC N - Increment Register N
+		rr[N] += 1;
+		rr[rp] += 1;
+	} else if (I == 0x2) { // DEC N - Decrement Register N
+		rr[N] += -1;
+		rr[rp] += 1;
+	} else if (I == 0x3) { // Branch or Skip
+		if (op_code == 0x30) { // Branch
+			rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1];
+		} else if (op_code == 0x31) { // BQ Short Branch if Q=1
+			if (rq == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x32) { // BZ Short Branch if D=0
+			if (rd == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else if (op_code == 0x33) { // BDF Short Branch if DF=1
+			if (rdf == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x34) { // B1 Short Branch if EF1=1
+			if (ref1 == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x35) { // B2 Short Branch if EF2=1
+			if (ref2 == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x36) { // B3 Short Branch if EF3=1
+			if (ref3 == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x37) { // B4 Short Branch if EF4=1
+			if (ref4 == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x38) { // Short Skip
+			rr[rp] += 2; // Advance 1 + Skip 1
+		} else if (op_code == 0x39) { // BNQ Short Branch if Q=0
+			if (rq != 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x3A) { // BNZ Short Branch if D=/=0
+			if (rd == 0) {
+				rr[rp] += 2; // Next Instruction
+			} else {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			}
+		} else if (op_code == 0x3B) { // BNF Short Branch if DF=0
+			if (rdf == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else if (op_code == 0x3C) { // BN1 Short Branch if EF1=0
+			if (ref2 == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else if (op_code == 0x3D) { // BN2 Short Branch if EF2=0
+			if (ref2 == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else if (op_code == 0x3E) { // BN3 Short Branch if EF3=0
+			if (ref3 == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else if (op_code == 0x3F) { // BN4 Short Branch if EF4=0
+			if (ref4 == 0) {
+				rr[rp] = (rr[rp] & 0xFF00) | mem[rr[rp]+1]; // Short Branch
+			} else {
+				rr[rp] += 2; // Next Instruction
+			}
+		} else {
+			alert ( "Unexpected Branch Instruction: " + hex2(op_code) );
+			stop();
+		}
+	} else if (I == 0x4) { // LDA N - Load From R(N) and Advance
+		rd = mem[rr[N]];
+		rr[N] += 1;
+		rr[rp] += 1;
+	} else if (I == 0x5) { // STR N - Store via N
+		mem[rr[N]] = rd;
+		rr[rp] += 1;
+	} else if (I == 0x6) { // IRX, Input, Output
+		if (op_code == 0x60) { // IRX Increment RX
+			rr[rx] += 1;
+			rr[rp] += 1;
+		} else if (op_code == 0x61) { // Output 1
+			out1.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x62) { // Output 2
+			out2.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x63) { // Output 3
+			out3.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x64) { // Output 4
+			out4.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x65) { // Output 5
+			out5.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x66) { // Output 6
+			out6.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x67) { // Output 7
+			out7.push ( mem[rr[rx]] );
+			rr[rx] += 1; // Output instructions always increment X
+			rr[rp] += 1; // Increment the Instruction Pointer
+		} else if (op_code == 0x68) { // Illegal Instruction
+			rr[rp] += 1;
+		} else if (op_code == 0x69) { // Input 1
+			v = in1[in1index];
+			in1index += 1;
+			if (in1index >= in1.length) {
+				in1index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6A) { // Input 2
+			v = in2[in2index];
+			in2index += 1;
+			if (in2index >= in2.length) {
+				in2index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6B) { // Input 3
+			v = in3[in3index];
+			in3index += 1;
+			if (in3index >= in3.length) {
+				in3index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6C) { // Input 4
+			v = in4[in4index];
+			in4index += 1;
+			if (in4index >= in4.length) {
+				in4index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6D) { // Input 5
+			v = in5[in5index];
+			in5index += 1;
+			if (in5index >= in5.length) {
+				in5index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6E) { // Input 6
+			v = in6[in6index];
+			in6index += 1;
+			if (in6index >= in6.length) {
+				in6index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else if (op_code == 0x6F) { // Input 7
+			v = in7[in7index];
+			in7index += 1;
+			if (in7index >= in7.length) {
+				in7index = 0;
+			}
+			rd = v;
+			mem[rr[rx]] = v;
+			rr[rp] += 1;
+		} else {
+			alert ( "Unexpected Input/Output Instruction: " + hex2(op_code) );
+			stop();
+		}
+	} else if (I == 0x7) { // Control, Arithmetic, Q
+		if (op_code == 0x70) { // RET Return
+			v = mem[rr[rx]];
+			rx = (v>>4) & 0x0F;
+			rp = v & 0x0F;
+			rr[rx] += 1;
+			rie = 1;
+		} else if (op_code == 0x71) { // DIS Disable
+			v = mem[rr[rx]];
+			rx = (v>>4) & 0x0F;
+			rp = v & 0x0F;
+			rr[rx] += 1;
+			rie = 0;
+		} else if (op_code == 0x72) { // LDXA Load Via X and Advance
+			rd = mem[rr[rx]];
+			rr[rx] += 1;
+			rr[rp] += 1;
+		} else if (op_code == 0x73) { // STXD Store Via X and Decrement
+			mem[rr[rx]] = rd;
+			rr[rx] += -1;
+			rr[rp] += 1;
+		} else if (op_code == 0x74) { // ADC Add with Carry
+			v = mem[rr[rx]] + rd + rdf;
+			if (v > 255) {
+				rd = v & 0xFF;
+				rdf = 1;
+			} else {
+				rd = v;
+				rdf = 0;
+			}
+			rr[rp] += 1;
+		} else if (op_code == 0x75) { // SDB - Subtract:  M(R(X)) - D - (NOT DF) => DF, D
+			v = mem[rr[rx]] - rd;
+			if (rdf == 0) {
+				v = v - 1;
+			}
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0x76) { // SHRC - Shift Right through Carry
+			old_rdf = rdf;
+			rdf = rd & 0x01;
+			rd = (rd >> 1) | (old_rdf << 7);
+			rd = rd & 0xFF;
+			rr[rp] += 1;
+
+		} else if (op_code == 0x77) { // SMB:  D - M(R(X)) - (NOT DF) => DF, D
+			v = rd - mem[rr[rx]];
+			if (rdf == 0) {
+				v = v - 1;
+			}
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0x78) { // SAV:  T => M(R(X))
+			console.log ( "NOTYET" );
+			rr[rp] += 1;
+		} else if (op_code == 0x79) { // MARK:  (X,P)=>T; (X,P)=>M(R(2)); P=>X; R(2) += -1
+			console.log ( "NOTYET" );
+			rr[rp] += 1;
+		} else if (op_code == 0x7D) { // SDBI XX:  M(R(P)) - D - (NOT DF) => DF,D
+			rr[rp] += 1;
+			v = mem[rr[rp]] - rd;
+			if (rdf == 0) {
+				v = v - 1;
+			}
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0x7F) { // SMBI XX:  D - M(R(P)) - (NOT DF) => DF,D
+			rr[rp] += 1;
+			v = rd - mem[rr[rp]];
+			if (rdf == 0) {
+				v = v - 1;
+			}
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0x7A) { // REQ - Reset Q
+			rq = 0;
+			rr[rp] += 1;
+		} else if (op_code == 0x7B) { // SEQ - Set Q
+			rq = 1;
+			rr[rp] += 1;
+		} else if (op_code == 0x7C) { // ADCI - Add with Carry Immediate
+			rr[rp] += 1;
+			v = mem[rr[rp]] + rd + rdf;
+			if (v > 255) {
+				rd = v & 0xFF;
+				rdf = 1;
+			} else {
+				rd = v;
+				rdf = 0;
+			}
+			rr[rp] += 1;
+		} else if (op_code == 0x7E) { // SHLC - Shift Left through Carry
+			old_rdf = rdf;
+			rdf = (rd >> 7) & 0x01;
+			rd = (rd << 1) | (old_rdf & 0x01);
+			rd = rd & 0xFF;
+			rr[rp] += 1;
+		} else {
+			alert ( "Unexpected Arith/Ctl Instruction: " + hex2(op_code) );
+			stop();
+		}
+	} else if (I == 0x8) { // GLO - Get Low RN
+		rd = rr[N] & 0xFF;
+		rr[rp] += 1;
+	} else if (I == 0x9) { // GHI - Get High RN
+		rd = (rr[N] & 0xFF00) >> 8;
+		rr[rp] += 1;
+	} else if (I == 0xA) { // PLO - Put Low RN
+		rr[N] = (rr[N] & 0xFF00) | rd;
+		rr[rp] += 1;
+	} else if (I == 0xB) { // PHI - Put High RN
+		rr[N] = (rr[N] & 0x00FF) | (rd << 8);
+		rr[rp] += 1;
+	} else if (I == 0xC) { // Long Branches and Skips
+		if (op_code == 0xC0) { // LBR - Long Branch
+			rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2];
+		} else if (op_code == 0xC1) { // LBQ - Long Branch if Q=1
+			if (rq == 0) {
+				rr[rp] += 3; // Next Instruction
+			} else {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			}
+		} else if (op_code == 0xC2) { // LBZ - Long Branch if D=0
+			if (rd != 0) {
+				rr[rp] += 3; // Next Instruction
+			} else {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			}
+		} else if (op_code == 0xC3) { // LBDF - Long Branch if DF=1
+			if (rdf == 0) {
+				rr[rp] += 3; // Next Instruction
+			} else {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			}
+		} else if (op_code == 0xC4) { // NOP - No operation
+			// No Op ... do nothing but advance the Program Counter
+			rr[rp] += 1;
+		} else if (op_code == 0xC5) { // LSNQ - Long Skip if Q=0
+			if (rq != 0) {
+				rr[rp] += 1; // Next Instruction
+			} else {
+				rr[rp] += 3; // Long Skip
+			}
+		} else if (op_code == 0xC6) { // LSNZ - Long Skip if D!=0
+			if (rd != 0) {
+				rr[rp] += 3; // Long Skip
+			} else {
+				rr[rp] += 1; // Next Instruction
+			}
+		} else if (op_code == 0xC7) { // LSNF - Long Skip if DF=0
+			if (rdf == 0) {
+				rr[rp] += 3; // Long Skip
+			} else {
+				rr[rp] += 1; // Next Instruction
+			}
+		} else if (op_code == 0xC8) { // Long Skip
+			rr[rp] += 3; // Advance 1 + Skip 2
+		} else if (op_code == 0xC9) { // LBNQ - Long Branch if Q=0
+			if (rq != 0) {
+				rr[rp] += 3; // Next Instruction
+			} else {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			}
+		} else if (op_code == 0xCA) { // LBNZ - Long Branch if D!=0
+			if (rd == 0) {
+				rr[rp] += 3; // Next Instruction
+			} else {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			}
+		} else if (op_code == 0xCB) { // LBNF - Long Branch if DF=0
+			if (rdf == 0) {
+				rr[rp] = (256 * mem[rr[rp]+1]) + mem[rr[rp]+2]; // Long Branch
+			} else {
+				rr[rp] += 3; // Next Instruction
+			}
+		} else if (op_code == 0xCC) { // LSIE - Long Skip if IE=1
+			if (rie == 0) {
+				rr[rp] += 1; // Next Instruction
+			} else {
+				rr[rp] += 3; // Long Skip
+			}
+		} else if (op_code == 0xCD) { // LSQ - Long Skip if Q=1
+			if (rq == 0) {
+				rr[rp] += 1; // Next Instruction
+			} else {
+				rr[rp] += 3; // Long Skip
+			}
+		} else if (op_code == 0xCE) { // LSZ - Long Skip if D == 0
+			if (rd == 0) {
+				rr[rp] += 3;
+			} else {
+				rr[rp] += 1;
+			}
+		} else if (op_code == 0xCF) { // LSDF - Long Skip if DF=1
+			if (rdf == 1) {
+				rr[rp] += 3; // Long Skip
+			} else {
+				rr[rp] += 1; // Next Instruction
+			}
+		} else {
+			alert ( "Unexpected Arith/Ctl Instruction: " + hex2(op_code) );
+			stop();
+		}
+	} else if (I == 0xD) { // SEP N - Set Program Counter
+		rr[rp] += 1; // Increment the old PC before switching to new PC
+		rp = N; // Set the Program Counter to N
+	} else if (I == 0xE) { // SEX N - Set indeX Pointer
+		rx = N; // Set the indeX Pointer to N
+		rr[rp] += 1;
+	} else if (I == 0xF) { // Logic/Arith/Immediate
+		if (op_code == 0xF0) { // LDX - Load via X
+			rd = mem[rr[rx]];
+			rr[rp] += 1;
+		} else if (op_code == 0xF1) { // OR - OR via X
+			rd = rd | mem[rr[rx]];
+			rr[rp] += 1;
+		} else if (op_code == 0xF2) { // AND - AND via X
+			rd = rd & mem[rr[rx]];
+			rr[rp] += 1;
+		} else if (op_code == 0xF3) { // XOR - XOR via X
+			rd = rd ^ mem[rr[rx]];
+			rr[rp] += 1;
+		} else if (op_code == 0xF4) { // ADD - Add
+			v = mem[rr[rx]] + rd;
+			if (v > 0xFF) {
+				v = v & 0xFF;
+				rdf = 1;
+			} else {
+				rdf = 0;
+			}
+			rd = v;
+			rr[rp] += 1;
+		} else if (op_code == 0xF5) { // SD - Subtract:  M(R(X)) - D => DF,D
+			v = mem[rr[rx]] - rd;
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0xF6) { // SHR - Shift Right
+			rdf = rd & 0x01;
+			rd = (rd >> 1) & 0xFF;
+			rr[rp] += 1;
+		} else if (op_code == 0xF7) { // SM - Subtract:  D - M(R(X)) => DF,D
+			v = rd - mem[rr[rx]];
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0xF8) { // LDI XX - Load Immediate
+			rr[rp] += 1;
+			rd = mem[rr[rp]];
+			rr[rp] += 1;
+		} else if (op_code == 0xF9) { // ORI XX - OR Immediate
+			rr[rp] += 1;
+			v = mem[rr[rp]] & 0xFF;
+			rd = rd | v
+			rr[rp] += 1;
+		} else if (op_code == 0xFA) { // ANI XX - AND Immediate
+			rr[rp] += 1;
+			v = mem[rr[rp]] & 0xFF;
+			rd = rd & v
+			rr[rp] += 1;
+		} else if (op_code == 0xFB) { // XRI XX - XOR Immediate
+			rr[rp] += 1;
+			v = mem[rr[rp]] & 0xFF;
+			rd = rd ^ v
+			rr[rp] += 1;
+		} else if (op_code == 0xFC) { // ADI XX - ADD Immediate
+			rr[rp] += 1;
+			v = mem[rr[rp]] + rd;
+			if (v > 0xFF) {
+				v = v & 0xFF;
+				rdf = 1;
+			} else {
+				rdf = 0;
+			}
+			rd = v;
+			rr[rp] += 1;
+		} else if (op_code == 0xFD) { // SDI - Subtract:  M(R(P)) - D => DF,D
+			rr[rp] += 1;
+			v = mem[rr[rp]] - rd;
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else if (op_code == 0xFE) { // SHL - Shift Left
+			rdf = rd & 0x80;
+			rd = (rd << 1) & 0xFF;
+			rr[rp] += 1;
+		} else if (op_code == 0xFF) { // SMI - Subtract:  D - M(R(P)) => DF,D
+			rr[rp] += 1;
+			v = rd - mem[rr[rp]];
+			rd = v & 0xFF;
+			rdf = ((~v) & 0x100) >> 8;
+			rr[rp] += 1;
+		} else {
+			alert ( "Unexpected Fx Instruction: " + hex2(op_code) );
+			stop();
+		}
+	} else {
+		alert ( "Unexpected Instruction: " + hex2(op_code) );
+		stop();
+	}
+	if (update_while_running) {
+		show_reg();
+		// show_Q_LED();
+		show_mem();
+		show_instr();
+		show_out();
+		// show_out_LED();
+		// get_in();
+	}
+	if (show_led_output) {
+		show_Q_LED();
+		show_out_LED();
+	}
+}
+
+
+/* Debug Trace Output:
+Halt Address = 001Dh (29)
+D = CCh (204, -52)
+DF/Carry = 0 (false)
+RP = R0 (0) = 001Dh (29)
+RX = R0 (0) = 001Dh (29)
+Q Flag = 0 (false)
+R0 = 001Dh (29, 29)
+R1 = 0000h (0, 0)
+R2 = 0000h (0, 0)
+R3 = 0002h (2, 2)
+R4 = 0003h (3, 3)
+R5 = 0004h (4, 4)
+R6 = 0000h (0, 0)
+R7 = 0000h (0, 0)
+R8 = 0000h (0, 0)
+R9 = 0000h (0, 0)
+RA = 0000h (0, 0)
+RB = 0000h (0, 0)
+RC = 0000h (0, 0)
+RD = 0000h (0, 0)
+RE = 0000h (0, 0)
+RF = 0000h (0, 0)
+*/
+
+function compare_dump_to_ref() {
+	out_log = document.getElementById("dump_out").value;
+	ref_log = document.getElementById("dump_ref").value;
+	comp_out = document.getElementById("diff")
+	if (out_log.trim() == ref_log.trim()) {
+		document.getElementById("diff").innerHTML = "<center><b class='match'>Match</b></center>";
+	} else {
+		document.getElementById("diff").innerHTML = "<center><b class='differ'>Differ</b></center>";
+		out_log_lines = document.getElementById("dump_out").value.split("\n");
+		ref_log_lines = document.getElementById("dump_ref").value.split("\n");
+		len_ol = out_log_lines.length;
+		len_rl = ref_log_lines.length;
+		n = len_ol;
+		if (len_ol > len_rl) {
+			n = len_rl;
+		}
+		for (i=0; i<n; i++) {
+			if (out_log_lines[i] != ref_log_lines[i]) {
+				document.getElementById("diff").innerHTML += "<br/>" +
+					"First difference at line " + i + "<br/>" +
+					"Out: " + out_log_lines[i] + "<br/>" +
+					"Ref: " + ref_log_lines[i] + "<br/>";
+				break;
+			}
+		}
+		if (len_ol > len_rl) {
+			document.getElementById("diff").innerHTML += "<br/>Output is longer than Reference<br/>";
+		} else if (len_ol < len_rl) {
+			document.getElementById("diff").innerHTML += "<br/>Output is shorter than Reference<br/>";
+		}
+	}
+}
+
+function clear_state(text_box_name) {
+	document.getElementById(text_box_name).value = "";
+}
+
+
+function compare_to_donnelly_format() {
+
+	ref_state_text = document.getElementById("ref_state").value;
+	all_match = true;
+
+	temp_adv = false;
+	if (mem[rr[rp]] == 0) {
+		rr[rp] = rr[rp] + 1; // This is needed because the PC seems to increment on IDL with Donnelly model
+		temp_adv = true;
+	}
+
+	// Get the last memory dump (which should be after the run)
+	ref_state_split = ref_state_text.split('* = 0000');
+	ref_mem = ref_state_split[ref_state_split.length - 1];
+	ref_mem_lines = ref_mem.split('\n');
+	mem_data = ""
+	for (i=0; i<ref_mem_lines.length; i++) {
+		if (ref_mem_lines[i].includes(':')) {
+			ref_mem_line_split = ref_mem_lines[i].split(':');
+			mem_data = mem_data + ref_mem_line_split[1];
+			mem_data_bytes = mem_data.trim().split(' ');
+		}
+	}
+	mem_data = mem_data.trim().replaceAll('  ',' ').replaceAll('  ',' ');
+	mem_data_bytes = mem_data.split(' ');
+	// console.log ( "mem_data = " + mem_data_bytes );
+	num_mismatch = 0;
+	for (im=0; im<mem_data_bytes.length; im++) {
+		if (mem_data_bytes[im] != hex2(mem[im])) {
+			console.log ( "Mismatch at " + im + ": Ref=" + mem_data_bytes[im] + " =/= " + hex2(mem[im]) );
+			num_mismatch += 1;
+			all_match = false;
+		}
+	}
+	console.log ( "Num memory mismatches = " + num_mismatch );
+
+	// Next parse the register data
+	blocks = ref_state_text.split("Halt Address");
+	reg_block = "Halt Address" + blocks[blocks.length-1];
+	assign_blocks = reg_block.split("\n");
+
+	if (assign_blocks[0].startsWith("Halt Address")) {
+		ref_val = assign_blocks[0].split('=')[1].trim();
+		if ( ref_val.startsWith(hex4(rr[rp])) ) {
+			console.log ( "Halt matches" );
+		} else {
+			console.log ( "Halt fails " + ref_val + " =/= " + hex4(rr[rp]) );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding Halt Address" );
+	}
+
+	if (assign_blocks[1].startsWith("D")) {
+		ref_val = assign_blocks[1].split('=')[1].trim();
+		if ( ref_val.startsWith(hex2(rd)) ) {
+			console.log ( "D matches" );
+		} else {
+			console.log ( "D fails" );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding D" );
+	}
+
+	if (assign_blocks[2].startsWith("DF/Carry")) {
+		ref_val = assign_blocks[2].split('=')[1].trim();
+		if ( ref_val.startsWith(hex1(rdf)) ) {
+			console.log ( "DF/Carry matches" );
+		} else {
+			console.log ( "DF/Carry fails" );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding DF/Carry" );
+	}
+
+	if (assign_blocks[3].startsWith("RP")) {
+		ref_val = assign_blocks[3].split('=')[1].trim()[1];
+		if ( ref_val.startsWith(hex1(rp)) ) {
+			console.log ( "P matches" );
+		} else {
+			console.log ( "P fails" );
+			all_match = false;
+		}
+		ref_val = assign_blocks[3].split('=')[2].trim();
+		if ( ref_val.startsWith(hex4(rr[rp])) ) {
+			console.log ( "RP matches" );
+		} else {
+			console.log ( "RP fails" );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding RP" );
+	}
+
+	if (assign_blocks[4].startsWith("RX")) {
+		ref_val = assign_blocks[4].split('=')[1].trim()[1];
+		if ( ref_val.startsWith(hex1(rx)) ) {
+			console.log ( "X matches" );
+		} else {
+			console.log ( "X fails" );
+			all_match = false;
+		}
+		ref_val = assign_blocks[4].split('=')[2].trim();
+		if ( ref_val.startsWith(hex4(rr[rx])) ) {
+			console.log ( "RX matches" );
+		} else {
+			console.log ( "RX fails" );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding RX" );
+	}
+
+	if (assign_blocks[5].startsWith("Q Flag")) {
+		ref_val = assign_blocks[5].split('=')[1].trim();
+		if ( ref_val.startsWith(hex1(rq)) ) {
+			console.log ( "Q matches" );
+		} else {
+			console.log ( "Q fails" );
+			all_match = false;
+		}
+	} else {
+		console.log ( "ERROR finding Q Flag" );
+	}
+
+	for (ref_reg=0; ref_reg<16; ref_reg++) {
+		if (assign_blocks[6+ref_reg].startsWith("R" + hex1(ref_reg))) {
+			ref_val = assign_blocks[6+ref_reg].split('=')[1].trim();
+			if ( ref_val.startsWith(hex4(rr[ref_reg])) ) {
+				console.log ( "R" + hex1(ref_reg) + " matches" );
+			} else {
+				// console.log ( "R" + hex1(ref_reg) + " fails " );
+				console.log ( "R" + hex1(ref_reg) + " fails " + ref_val.substr(0,4) + " =/= " + hex4(rr[ref_reg]) );
+				all_match = false;
+			}
+		} else {
+			console.log ( "ERROR finding R" + hex1(ref_reg) );
+		}
+	}
+
+	if (temp_adv) {
+		// Undo the advance
+		rr[rp] = rr[rp] - 1; // This is needed because the Donnelly Sim PC seems to increment with Donnelly model
+	}
+
+	if (all_match) {
+		console.log ( "All Match!!" );
+	} else {
+		console.log ( "Failures Found." );
+	}
+
+}
+
+
+function unit_test() {
+	console.log ( "===== Begin Unit Tests =====" );
+
+	power_on();
+	zero_mem();
+	rd = 0x00;
+	rr[1] = 0x0002;
+	mem[0] = 0x01; // LDN: rd = mem[rr[N]];
+	mem[1] = 0x00;
+	mem[2] = 0xAB;
+	exec_next();
+	if (rd == 0xAB) {
+		console.log ( "  LDN passed" );
+	} else {
+		console.log ( "  LDN failed" );
+	}
+
+	power_on();
+	zero_mem();
+	rr[1] = 0x0007;
+	mem[0] = 0x11; // INC N: rr[N] += 1;
+	mem[1] = 0x00;
+	exec_next();
+	if (rr[1] == 0x0008) {
+		console.log ( "  INC N passed" );
+	} else {
+		console.log ( "  INC N failed" );
+	}
+
+	power_on();
+	zero_mem();
+	rr[1] = 0x0007;
+	mem[0] = 0x21; // DEC N: rr[N] += -1;
+	mem[1] = 0x00;
+	exec_next();
+	if (rr[1] == 0x0006) {
+		console.log ( "  DEC N passed" );
+	} else {
+		console.log ( "  DEC N failed" );
+	}
+
+	power_on();
+	zero_mem();
+	mem[0] = 0x30; // BR
+	mem[1] = 0x03; // 03
+	mem[2] = 0x7B; // Set Q
+	mem[3] = 0x00;
+	exec_next();
+	if (rq == 0x00) {
+		console.log ( "  BR passed" );
+	} else {
+		console.log ( "  BR failed" );
+	}
+
+	power_on();
+	zero_mem();
+	rr[1] = 0x0000;
+	rq = 0x1
+	mem[0] = 0x31; // BQ
+	mem[1] = 0x03; // 03
+	mem[2] = 0x11; // Inc 1
+	mem[3] = 0x00;
+	exec_next();
+	if (rr[1] == 0x0000) {
+		console.log ( "  BQ passed" );
+	} else {
+		console.log ( "  BQ failed" );
+	}
+
+	power_on();
+	zero_mem();
+	rd = 0;
+	mem[0] = 0x32; // BZ Short Branch if D=0
+	mem[1] = 0x03; // 03
+	mem[2] = 0x7B; // Set Q
+	mem[3] = 0x00;
+	exec_next();
+	if (rq == 0x00) {
+		console.log ( "  BZ passed" );
+	} else {
+		console.log ( "  BZ failed" );
+	}
+
+	power_on();
+	zero_mem();
+	rdf = 1;
+	mem[0] = 0x33; // BDF Short Branch if DF=1
+	mem[1] = 0x03; // 03
+	mem[2] = 0x7B; // Set Q
+	mem[3] = 0x00;
+	exec_next();
+	if (rq == 0x00) {
+		console.log ( "  BDF passed" );
+	} else {
+		console.log ( "  BDF failed" );
+	}
+
+	for (var i=0; i<4; i++) {
+		power_on();
+		zero_mem();
+		rr[1] = 0x0000;
+		rr[2] = 0x0000;
+		mem[0] = 0x34 + i; // B1-4 Short Branch if EF1-4=1
+		mem[1] = 0x03; // 03
+		mem[2] = 0x11; // INC 1 should be skipped
+		mem[3] = 0x34 + i; // B1 Short Branch if EF1-4=1
+		mem[4] = 0x06; // 03
+		mem[5] = 0x12; // INC 2 should execute
+		mem[6] = 0x00;
+		ref1 = 1; ref2 = 1; ref3 = 1; ref4 = 1;
+		exec_next(); // Should jump from 0 to 3 - no INC 1
+		ref1 = 0; ref2 = 0; ref3 = 0; ref4 = 0;
+		exec_next(); // Should not jump
+		exec_next(); // Should execute INC 2
+		if ((rr[1] == 0x0000) && (rr[2] == 0x0001)) {
+			console.log ( "  B" + (i+1) + " passed" );
+		} else {
+			console.log ( "  B" + (i+1) + " failed" );
+		}
+	}
+
+	for (var i=0; i<4; i++) {
+		power_on();
+		zero_mem();
+		rr[1] = 0x0000;
+		rr[2] = 0x0000;
+		mem[0] = 0x3C + i; // B1-4 Short Branch if EF1-4=0
+		mem[1] = 0x03; // 03
+		mem[2] = 0x11; // INC 1 should be skipped
+		mem[3] = 0x3C + i; // B1 Short Branch if EF1-4=0
+		mem[4] = 0x06; // 03
+		mem[5] = 0x12; // INC 2 should execute
+		mem[6] = 0x00;
+		ref1 = 0; ref2 = 0; ref3 = 0; ref4 = 0;
+		exec_next(); // Should jump from 0 to 3 - no INC 1
+		ref1 = 1; ref2 = 1; ref3 = 1; ref4 = 1;
+		exec_next(); // Should not jump
+		exec_next(); // Should execute INC 2
+		if ((rr[1] == 0x0000) && (rr[2] == 0x0001)) {
+			console.log ( "  BN" + (i+1) + " passed" );
+		} else {
+			console.log ( "  BN" + (i+1) + " failed" );
+		}
+	}
+
+	return (0);
+}
+
+example_programs = [
+	[ "Idle", "00" ],
+	[ "SetQ", "7B00" ],
+	[ "BlinkQ", "90\nB1\nE7\nF8 0A\nA1\n7B\nD1\n30 06\n7A\nD0\n30 0A\n"]
+];
+
+function open_program() {
+	prog_name = document.getElementById('program_select').value;
+	for (i=0; i<example_programs.length; i++) {
+		if (prog_name == example_programs[i][0]) {
+			hex_code = document.getElementById("Hex Code");
+			hex_code.value = example_programs[i][1];
+			console.log("Opening " + prog_name);
+		}
+	}
+}
+
+function on_load() {
+	power_on();
+	load_prog();
+}
+
+</script>
+
+</head>
+
+
+<body id="FullPage" onload="on_load()">
+
+<center>
+
+<h2>RCA 1802 JavaScript Simulation</h2>
+
+<button type="button" onclick="power_on();">Power On</button>
+<button type="button" onclick="zero_reg();">Zero Registers</button>
+<button type="button" onclick="zero_mem();">Zero Memory</button>
+<button type="button" onclick="load_prog();">Load Program</button>
+<button type="button" onclick="cpu_reset();">Reset</button>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<button type="button" onclick="run_stop();" id="RunStop">Run/<u>Stop</u></button>
+<button type="button" onclick="step();">Step</button>
+&nbsp;&nbsp;&nbsp;
+<span id="Next_Instr" style="border: none; font-family: monospace; font-weight: bold; font-size: 120%; color: red">&nbsp;&nbsp;&nbsp;&nbsp;</span>
+
+<p id="demo"></p>
+
+<table id="CPU" style="border: none;">
+<tr style="border: none;">
+	<th>Hex Code / In4 / Out4</th>
+	<th style="border:none;"></th>
+	<th>Ctl</th>
+	<th style="border:none;"></th>
+	<th>Registers</th>
+	<th style="border:none;"></th>
+	<th>Memory</th>
+	<th style="border:none;"></th>
+	<th><button type="button" onclick="set_mem_top();">Go to:</button> &nbsp; <input type="text" id="mem_top_req" size="3"></th>
+</tr>
+
+<tr style="border: none;">
+
+<td><table id="Code and I/O" style="border: none;">
+<!--
+This didn't seem to work smoothly. The drop down would hang for quite a while on the Pi.
+<tr><td style="border: none;" valign="top">
+	<!!-- label for="program_select">Select a Program:</label --!!>
+	<select name="pets" id="program_select">
+		<option value="">-- Program --</option>
+		<option value="Idle">Idle</option>
+		<option value="SetQ">Set Q</option>
+		<option value="BlinkQ">Blink Q</option>
+	</select>
+	<button type="button" onclick="open_program();">Open</button>
+</td></tr> -->
+<tr><td style="border: none;" valign="top"><textarea id="Hex Code" rows="18" cols="20">
+00: 30 0D
+02: 00
+03: 7B
+04: 64
+05: 24
+06: 1F
+07: 8F
+08: 7A
+09: 54
+0A: 04
+0B: 30 03
+0D: F8 02
+0F: A4
+10: F8 00
+12: B4
+13: AF
+14: BF
+15: E4
+16: 30 03
+18: 00
+</textarea></td></tr>
+<!--
+300D007B64241F8F7A54043003F802A4F800B4AFBFE4300300
+3005000000F800B3B4B5F802A3F803A4F804A5F8AA53F8BB54F8CC5500EE
+-->
+
+<tr><td style="border: none;" valign="top"><textarea id="In4" rows="2" cols="20">
+FACE 0F 1802
+</textarea></td></tr>
+
+<tr><td style="border: none;" valign="top"><textarea id="Out4" rows="2" cols="20">
+</textarea></td></tr>
+
+<tr><td style="border: none;" valign="top">
+<center><button type="button" id="Clear_Input" onclick="clear_out();">Clear Output</button></center>
+</td></tr>
+
+</table></td>
+<!--
+<td style="border: none;"><table id="Control Modes">
+	<tr><td>~CLEAR</td><td>~WAIT</td><td>MODE</td></tr>
+	<tr><td id="NotClear">L</td><td id="NotWait">L</td><td id="MODE">LOAD</td></tr>
+</table></td>
+-->
+
+<td style="border: none;">&nbsp;&nbsp;</td>
+
+<td valign="top" style="border: none;"><table id="Control Registers">
+	<tr><td class="program_counter">P</td><td id="P" class="program_counter">0</td></tr>
+	<tr><td class="data_pointer">X</td><td id="X" class="data_pointer">0</td></tr>
+	<tr><td>D</td><td id="D">43</td></tr>
+	<tr><td>DF</td><td id="DF">0</td></tr>
+	<tr><td>I</td><td id="I">0</td></tr>
+	<tr><td>N</td><td id="N">0</td></tr>
+	<tr><td>T</td><td id="T">00</td></tr>
+	<tr><td>A</td><td id="A">0</td></tr>
+	<tr><td>B</td><td id="B">D</td></tr>
+	<tr><td>IE</td><td id="IE">0</td></tr>
+	<tr><td>Q</td><td id="Q">0</td></tr>
+	<tr><td colspan="2" class="QLED_ON" id="QLED"><center>&#x25CF</center></td></tr>
+	<tr><td class="SEV_SEG" id="SevSegH"><center>7</center></td><td class="SEV_SEG" id="SevSegL"><center>F</center></td></tr>
+	<tr><td colspan="2"><center><button type="button" id="LED_BUTTON" onclick="toggle_led_out();"> &#x2600; </button></center></td></tr>
+</table></td>
+
+<td style="border: none;">&nbsp;&nbsp;</td>
+
+<td valign="top" style="border: none;"><table id="General Registers" border="1">
+	<tr><td>R0</td><td id="R0">0</td></tr>
+	<tr><td>R1</td><td id="R1">0</td></tr>
+	<tr><td>R2</td><td id="R2">0</td></tr>
+	<tr><td>R3</td><td id="R3">0</td></tr>
+	<tr><td>R4</td><td id="R4">0</td></tr>
+	<tr><td>R5</td><td id="R5">0</td></tr>
+	<tr><td>R6</td><td id="R6">0</td></tr>
+	<tr><td>R7</td><td id="R7">0</td></tr>
+	<tr><td>R8</td><td id="R8">0</td></tr>
+	<tr><td>R9</td><td id="R9">0</td></tr>
+	<tr><td>RA</td><td id="RA">0</td></tr>
+	<tr><td>RB</td><td id="RB">0</td></tr>
+	<tr><td>RC</td><td id="RC">0</td></tr>
+	<tr><td>RD</td><td id="RD">0</td></tr>
+	<tr><td>RE</td><td id="RE">0</td></tr>
+	<tr><td>RF</td><td id="RF">0</td></tr>
+</table></td>
+
+<td style="border: none;">&nbsp;&nbsp;</td>
+
+<td valign="top" style="border: none;"><table id="Memory" border="1">
+	<tr><td>0000</td><td id="M0000">00</td></tr>
+</table></td>
+
+<td style="border: none;">&nbsp;&nbsp;</td>
+
+<td valign="top" style="border: none;"><table id="MemView"  style="border: none;">
+	<!-- <tr><td style="border: none;"><center><button type="button" onclick="mem_top();"><span style="font-weight: bold; font-size: 250%;"> &#x26BB </span></button></center></td></tr> -->
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_top();"><span style="font-weight: bold; font-size: 200%;"> &#x25B2 </span></button></center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_pgu();"><span style="font-weight: bold; font-size: 140%;"> &#x25B2 </span></button></center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_up();"><span style="font-weight: bold; font-size: 120%;"> &#x25B4 </span></button></center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_dn();"><span style="font-weight: bold; font-size: 120%;"> &#x25BE </span></button></center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_pgd();"><span style="font-weight: bold; font-size: 140%;"> &#x25BC </span></button></center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="mem_bot();"><span style="font-weight: bold; font-size: 200%;"> &#x25BC </span></button></center></td></tr>
+	<!-- <tr><td style="border: none;"><center><button type="button" onclick="mem_bot();"><span style="font-weight: bold; font-size: 250%;"> &#x26BA </span></button></center></td></tr> -->
+	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
+	<tr><td style="border: none;"><center><input type="checkbox" id="TrackedPC" checked onclick="toggle_pc_tracked();">PC Tracked</center></td></tr>
+	<tr><td style="border: none;"><center><input type="checkbox" id="CenterPC" onclick="toggle_pc_centered();">PC Centered</center></td></tr>
+	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
+	<!-- <tr><td style="border: none;"><center>Log OpCodes:<br/><textarea id="dump_code" rows="1" cols="3">  </textarea></center></td></tr> -->
+	<tr><td style="border: none;"><center>Log OpCodes:<br/><input type="text" id="dump_code" size="3"></center></td></tr>
+	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
+	<tr><td style="border: none;"><center><button type="button" onclick="update_enable_disable();" id="UpdateEnDis">Update <b><u>On</u></b>/Off</button></center></td></tr>
+
+
+</table></td>
+
+</tr>
+
+</table>
+
+</center>
+
+<p/>
+<hr/>
+<p/>
+
+<center><h3>Machine State Log <button type="button" onclick="clear_state('dump_out');">Clear</button></h3>
+<textarea id="dump_out" rows="7" cols="94">
+</textarea></center>
+
+<p/>
+<hr/>
+<p/>
+
+
+<center><h3>Machine State Reference <button type="button" onclick="clear_state('dump_ref');">Clear</button></h3>
+<textarea id="dump_ref" rows="7" cols="94">
+</textarea></center>
+
+<p/>
+<hr/>
+<p/>
+<center><h3><button type="button" onclick="compare_dump_to_ref();">Compare Machine State with Reference</button></h3></center>
+
+<p id="diff">
+</p>
+
+<!--
+<p/>
+<hr/>
+<p/>
+
+
+<center>
+<h3>Reference Data (after Zero and "Debug Trace" and "Dump Memory"):</h3>
+<textarea id="ref_state" rows="4" cols="80">
+Halt Address = 001Ch (28)
+D = CCh (204, -52)
+DF/Carry = 0 (false)
+RP = R0 (0) = 001Dh (29)
+RX = R0 (0) = 001Dh (29)
+Q Flag = 0 (false)
+R0 = 001Dh (29, 29)          R8 = 0000h (0, 0)
+R1 = 0000h (0, 0)          R9 = 0000h (0, 0)
+R2 = 0000h (0, 0)          RA = 0000h (0, 0)
+R3 = 0002h (2, 2)          RB = 0000h (0, 0)
+R4 = 0003h (3, 3)          RC = 0000h (0, 0)
+R5 = 0004h (4, 4)          RD = 0000h (0, 0)
+R6 = 0000h (0, 0)          RE = 0000h (0, 0)
+R7 = 0000h (0, 0)          RF = 0000h (0, 0)
+
+* = 0000
+0000: 30 05 AA BB CC F8 00 B3  B4 B5 F8 02 A3 F8 03 A4
+0010: F8 04 A5 F8 AA 53 F8 BB  54 F8 CC 55 00 EE
+</textarea>
+<h3><button type="button" onclick="compare_to_donnelly_format();">Compare Machine State with Reference</button> (see Console for results)</h3>
+</center>
+
+-->
+
+<p/>
+<hr/>
+<p/>
+
+<!--
+Machine Code for idle:
+00
+
+Machine Code for idle:
+0030
+
+Machine Code for qloop:
+7A7B3000
+
+Machine Code for blink_by_pc_swap:
+90B1F809A17BD130057AD03009
+
+Machine Code for show_switches:
+E190B1F80AA16C643003
+
+Machine Code for slow_blink:
+7AF810B121913A0431007B300100
+
+Machine Code for slow_blink_2_3:
+91CE7A387B11300000
+
+Machine code for short skip and long skip:
+7B387AC87A7A00
+
+Machine Code for fixed_counter:
+E1F800B1F815A16421F0FC015131127B30077A30070088
+
+Machine Code for variable_counter:
+E1F800B1F829A164E2F800B2F82AA26CF0E1A282321B7B7A2230137A21F0
+FC015131267B30077A300788
+
+
+Machine Code for memory_clear:
+90AEBEEE73300388
+
+Machine Code for better_memory_sequencer:
+90BEF805AEEE8E73300688
+-->
+<center>
+<h3>RCA 1802 Instruction Set</h3>
+<table>
+	<tr><td>00</td><td>IDL</td><td> Idle wait for Int/DMA </td></tr>
+	<tr><td>0N</td><td>LDN</td><td> M(R(N)) => D; FOR N not 0 </td></tr>
+	<tr><td>1N</td><td>INC N</td><td> R(N) + 1 => R(N) </td></tr>
+	<tr><td>2N</td><td>DEC N</td><td> R(N) - 1 => R(N) </td></tr>
+	<tr><td>30</td><td>BR XX</td><td> M(R(P)) => R(P).0 </td></tr>
+	<tr><td>31</td><td>BQ XX</td><td> IF Q=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>32</td><td>BZ XX</td><td> IF D=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>33</td><td>BDF XX</td><td> IF DF=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>34</td><td>B1 XX</td><td> IF EF1=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>35</td><td>B2 XX</td><td> IF EF2=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>36</td><td>B3 XX</td><td> IF EF3=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>37</td><td>B4 XX</td><td> IF EF4=1, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>38</td><td>SKP</td><td> R(P) + 1 => R(P) </td></tr>
+	<tr><td>39</td><td>BNQ XX</td><td> IF Q=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3A</td><td>BNZ XX</td><td> IF D NOT 0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3B</td><td>BNF XX</td><td> IF DF=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3C</td><td>BN1 XX</td><td> IF EF1=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3D</td><td>BN2 XX</td><td> IF EF2=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3E</td><td>BN3 XX</td><td> IF EF3=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>3F</td><td>BN4 XX</td><td> IF EF4=0, M(R(P)) => R(P).0 </td></tr>
+	<tr><td>4N</td><td>LDA N</td><td> M(R(N)) => D; R(N)++ </td></tr>
+	<tr><td>5N</td><td>STR N</td><td> D => M(R(N)) </td></tr>
+	<tr><td>60</td><td>IRX</td><td> R(X) += 1 </td></tr>
+	<tr><td>61</td><td>OUT 1</td><td> M(R(X)) => Bus; R(X)++; Nout=1 </td></tr>
+	<tr><td>62</td><td>OUT 2</td><td> M(R(X)) => Bus; R(X)++; Nout=2 </td></tr>
+	<tr><td>63</td><td>OUT 3</td><td> M(R(X)) => Bus; R(X)++; Nout=3 </td></tr>
+	<tr><td>64</td><td>OUT 4</td><td> M(R(X)) => Bus; R(X)++; Nout=4 </td></tr>
+	<tr><td>65</td><td>OUT 5</td><td> M(R(X)) => Bus; R(X)++; Nout=5 </td></tr>
+	<tr><td>66</td><td>OUT 6</td><td> M(R(X)) => Bus; R(X)++; Nout=6 </td></tr>
+	<tr><td>67</td><td>OUT 7</td><td> M(R(X)) => Bus; R(X)++; Nout=7 </td></tr>
+	<tr><td>68</td><td>ILL</td><td> Illegal Operation </td></tr>
+	<tr><td>69</td><td>INP 1</td><td> Bus => M(R(X)); BUS => D; Nout=1 </td></tr>
+	<tr><td>6A</td><td>INP 2</td><td> Bus => M(R(X)); BUS => D; Nout=2 </td></tr>
+	<tr><td>6B</td><td>INP 3</td><td> Bus => M(R(X)); BUS => D; Nout=3 </td></tr>
+	<tr><td>6C</td><td>INP 4</td><td> Bus => M(R(X)); BUS => D; Nout=4 </td></tr>
+	<tr><td>6D</td><td>INP 5</td><td> Bus => M(R(X)); BUS => D; Nout=5 </td></tr>
+	<tr><td>6E</td><td>INP 6</td><td> Bus => M(R(X)); BUS => D; Nout=6 </td></tr>
+	<tr><td>6F</td><td>INP 7</td><td> Bus => M(R(X)); BUS => D; Nout=7 </td></tr>
+	<tr><td>70</td><td>RET</td><td> M(R(X)) => (X,P); R(X)++; 1 => IE </td></tr>
+	<tr><td>71</td><td>DIS</td><td> M(R(X)) => (X,P); R(X)++; 0 => IE </td></tr>
+	<tr><td>72</td><td>LDXA</td><td> M(R(X)) => D; R(X)++ </td></tr>
+	<tr><td>73</td><td>STXD</td><td> D => M(R(X)); R(X) += -1 </td></tr>
+	<tr><td>74</td><td>ADC</td><td> M(R(X)) + D + DF => DF, D </td></tr>
+	<tr><td>75</td><td>SDB</td><td> M(R(X)) - D - (NOT DF) => DF, D </td></tr>
+	<tr><td>76</td><td>SHRC</td><td> D >> 1; LSB(D) => DF; 0 => MSB(D) </td></tr>
+	<tr><td>77</td><td>SMB</td><td> D - M(R(X)) - (NOT DF) => DF, D </td></tr>
+	<tr><td class="NOTYET">78</td><td class="NOTYET">SAV</td><td> T => M(R(X)) </td></tr>
+	<tr><td class="NOTYET">79</td><td class="NOTYET">MARK</td><td> (X,P)=>T; (X,P)=>M(R(2)); P=>X; R(2) += -1 </td></tr>
+	<tr><td>7A</td><td>REQ</td><td> 0 => Q </td></tr>
+	<tr><td>7B</td><td>SEQ</td><td> 1 => Q </td></tr>
+	<tr><td>7C</td><td>ADCI XX</td><td> M(R(P)) + D + DF => DF,D </td></tr>
+	<tr><td>7D XX</td><td>SDBI</td><td> M(R(P)) - D - (NOT DF) => DF,D </td></tr>
+	<tr><td>7E</td><td>SHLC</td><td> D &lt;&lt; 1; MSB(D) => DF; DF => LSB(D)</td></tr>
+	<tr><td>7F XX</td><td>SMBI</td><td> D - M(R(P)) - (NOT DF) => DF,D </td></tr>
+	<tr><td>8N</td><td>GLO</td><td> R(N).0 => D </td></tr>
+	<tr><td>9N</td><td>GHI</td><td> R(N).1 => D </td></tr>
+	<tr><td>AN</td><td>PLO</td><td> D => R(N).0 </td></tr>
+	<tr><td>BN</td><td>PHI</td><td> D => R(N).1 </td></tr>
+	<tr><td>C0</td><td>LBR XXXX</td><td> M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>C1</td><td>LBQ XXXX</td><td> IF Q=1, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>C2</td><td>LBZ XXXX</td><td> IF D=0, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>C3</td><td>LBDF XXXX</td><td> IF DF=1, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>C4</td><td>NOP</td><td> CONTINUE </td></tr>
+	<tr><td>C5</td><td>LSNQ</td><td> IF Q=0, R(P) += 2 </td></tr>
+	<tr><td>C6</td><td>LSNZ</td><td> IF D!=0, R(P) += 2 </td></tr>
+	<tr><td>C7</td><td>LSNF</td><td> IF DF=0, R(P) += 2 </td></tr>
+	<tr><td>C8</td><td>LSKP</td><td> R(P) += 2 </td></tr>
+	<tr><td>C9</td><td>LBNQ XXXX</td><td> IF Q=0, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>CA</td><td>LBNZ XXXX</td><td> IF D!=0, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>CB</td><td>LBNF XXXX</td><td> IF DF=0, M(R(P)),M(R(P+1)) => R(P).1,R(P).0 </td></tr>
+	<tr><td>CC</td><td>LSIE</td><td> IF IE=1, R(P) += 2 </td></tr>
+	<tr><td>CD</td><td>LSQ</td><td> IF Q=1, R(P) += 2 </td></tr>
+	<tr><td>CE</td><td>LSZ</td><td> IF D=0, R(P) += 2 </td></tr>
+	<tr><td>CF</td><td>LSDF</td><td> IF DF=1, R(P) += 2 </td></tr>
+	<tr><td>DN</td><td>SEP N</td><td> N => P </td></tr>
+	<tr><td>EN</td><td>SEX N</td><td> N => X </td></tr>
+	<tr><td>F0</td><td>LDX</td><td> M(R(X)) => D </td></tr>
+	<tr><td>F1</td><td>OR</td><td> M(R(X)) OR D => D </td></tr>
+	<tr><td>F2</td><td>AND</td><td> M(R(X)) AND D => D </td></tr>
+	<tr><td>F3</td><td>XOR</td><td> M(R(X)) XOR D => D </td></tr>
+	<tr><td>F4</td><td>ADD</td><td> M(R(X)) + D => DF,D </td></tr>
+	<tr><td>F5</td><td>SD</td><td> M(R(X)) - D => DF,D </td></tr>
+	<tr><td>F6</td><td>SHR</td><td> D >> 1; LSB(D) => DF; 0 => MSB(D) </td></tr>
+	<tr><td>F7</td><td>SM</td><td> D - M(R(X)) => DF,D </td></tr>
+	<tr><td>F8</td><td>LDI XX</td><td> M(R(P)) => D </td></tr>
+	<tr><td>F9</td><td>ORI XX</td><td> M(R(P)) OR D => D </td></tr>
+	<tr><td>FA</td><td>ANI XX</td><td> M(R(P)) AND D => D </td></tr>
+	<tr><td>FB</td><td>XRI XX</td><td> M(R(P)) XOR D => D </td></tr>
+	<tr><td>FC</td><td>ADI XX</td><td> M(R(P)) + D => DF,D </td></tr>
+	<tr><td>FD</td><td>SDI XX</td><td> M(R(P)) - D => DF,D </td></tr>
+	<tr><td>FE</td><td>SHL</td><td> D &lt;&lt; 1; MSB(D) => DF; 0 => LSB(D) </td></tr>
+	<tr><td>FF</td><td>SMI XX</td><td> D - M(R(P)) => DF,D </td></tr>
+</table>
+</center>
+
+<p/>
+<hr/>
+<p/>
+
+<center>
+<table>
+	<tr><th><h3>Example Programs</h3></th></tr>
+	<tr><td>
+		<table>
+			<tr><th style="padding: 5px;">Name</th><th style="padding: 5px;">Source Code</th><th style="padding: 5px;">Machine Code</th></tr>
+
+			<tr><td valign="top">Idle</td><td valign="top">IDL</td><td valign="top">00</td></tr>
+
+			<tr><td valign="top">NOP Idle</td><td valign="top">
+				NOP<br/>
+				IDL
+			</td><td valign="top">C400</td></tr>
+
+			<tr><td valign="top">NOP Loop</td><td valign="top">
+				NOP<br/>
+				NOP<br/>
+				NOP<br/>
+				NOP<br/>
+				NOP<br/>
+				BR 00
+			</td><td valign="top">C4C4C4C4C43000</td></tr>
+
+			<tr><td valign="top">Set Q</td><td valign="top">SEQ<br/>IDL</td><td valign="top">7B00</td></tr>
+
+			<tr><td valign="top">Blink Q</td><td valign="top">
+				REQ<br/>
+				SEQ<br/>
+				BR 00
+			</td><td valign="top">7A7B3000</td></tr>
+
+			<tr><td valign="top">Slow Blink Q</td><td valign="top">
+			   GHI R1<br/>
+			   LSZ<br/>
+			   REQ<br/>
+			   SKP<br/>
+			   SEQ<br/>
+			   INC R1<br/>
+			   BR 00
+			</td><td valign="top">91CE7A387B113000</td></tr>
+
+			<tr><td valign="top">Faster Slow Blink Q</td><td valign="top">
+			   GLO R1<br/>
+			   LSZ<br/>
+			   REQ<br/>
+			   SKP<br/>
+			   SEQ<br/>
+			   INC R1<br/>
+			   BR 00
+			</td><td valign="top">81CE7A387B113000</td></tr>
+
+			<tr><td valign="top">Blink Q by PC Swap</td><td valign="top">
+				GHI R0 (90)<br/>
+				PHI R1 (B1)<br/>
+				LDI 09 (F8 09)<br/>
+				PLO R1 (A1)<br/>
+				SEQ (7B)<br/>
+				SEP R1 (D1)<br/>
+				BR  05 (30 05)<br/>
+				REQ (7A)<br/>
+				SEP R0 (D0)<br/>
+				BR  09 (30 09)<br/>
+			</td><td valign="top">90B1F809A17BD130057AD03009</td></tr>
+
+			<tr><td valign="top">Skip Tests</td><td valign="top">
+				SEQ<br/>
+				SKP<br/>
+				REQ<br/>
+				LSKP<br/>
+				REQ<br/>
+				REQ<br/>
+				LDI 00<br/>
+				LSZ<br/>
+				REQ<br/>
+				REQ<br/>
+				LDI 01<br/>
+				LSZ<br/>
+				REQ<br/>
+				REQ<br/>
+				IDL
+			</td><td valign="top">7B387AC87A7AF800CE7A7AF801CE7A7A00</td></tr>
+
+			<tr><td valign="top">16 Bit Register 5 Counter</td><td valign="top">
+                LDI 00 (F8 00)<br/>
+                PLO R5 (A5)<br/>
+                PHI R5 (B5)<br/>
+			    INC R5 (15)<br/>
+				BR 04 (30 04)<br/>
+				IDL (00)
+			</td><td valign="top">F800A5B515300400</td></tr>
+
+			<tr><td valign="top">8 Bit Counter STN/LDN</td><td valign="top">
+                LDI 0D (F8 0F)<br/>
+                PLO R4 (A4)<br/>
+                LDI 00 (F8 00)<br/>
+                PHI R4 (B4)<br/>
+                PLO RD (AF)<br/>
+                PHI RD (BF)<br/>
+			    INC RD (1F)<br/>
+			    GLO RD (8F)<br/>
+			    STR R4 (54)<br/>
+			    GHI R0 (94)<br/>
+			    LDN R4 (04)<br/>
+				BR 08 (30 08)<br/>
+				IDL (00)
+			</td><td valign="top">F80FA4F800B4AFBF1F8F549404300800</td></tr>
+
+			<tr><td valign="top">Count to 5 with Output</td><td valign="top">
+				BR 07 (30 07)<br/>
+				$ 01 (01)<br/>
+				$ 02 (01)<br/>
+				$ 03 (01)<br/>
+				$ 04 (01)<br/>
+				$ 05 (01)<br/>
+				GHI R0 (90)<br/>
+				PHI R5 (B5)<br/>
+				LDI 02 (F8 02)<br/>
+				PLO R5 (A5)<br/>
+				SEX R5 (E5)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				IDL (00)
+			</td><td valign="top">3007010203040590B5F802A5E5646464646400</td></tr>
+
+			<tr><td valign="top">Count Forever with Output</td><td valign="top">
+				<!--
+						BR setup
+				count:  $ 00
+				loop:   OUT 4      ;(64)
+						DEC R4     ;(24)
+						INC RF     ;(1F)
+						GLO RF     ;(8F)
+						STR R4     ;(54)
+						LDN R4     ;(04)
+						BR  loop    ;(30 08)
+				setup:  LDI count  ;(F8 0F)
+						PLO R4     ;(A4)
+						LDI 00     ;(F8 00)
+						PHI R4     ;(B4)
+						PLO RF     ;(AF)
+						PHI RF     ;(BF)
+						SEX R4     ;(E4)
+						BR  loop
+						IDL
+				-->
+				BR 0B  (30 0B)<br/>
+				$ 00   (00)<br/>
+				OUT 4  (64)<br/>
+				DEC R4 (24)<br/>
+				INC RF (1F)<br/>
+				GLO RF (8F)<br/>
+				STR R4 (54)<br/>
+				LDN R4 (04)<br/>
+				BR  03 (30 03)<br/>
+				LDI 02 (F8 02)<br/>
+				PLO R4 (A4)<br/>
+				LDI 00 (F8 00)<br/>
+				PHI R4 (B4)<br/>
+				PLO RF (AF)<br/>
+				PHI RF (BF)<br/>
+				SEX R4 (E4)<br/>
+				BR 03  (30 03)<br/>
+				IDL    (00)<br/>
+			</td><td valign="top">300B0064241F8F54043003F802A4F800B4AFBFE4300300</td></tr>
+
+			<tr><td valign="top">Echo Input to Output</td><td valign="top">
+				<!--
+					    SEX R1
+				loop:	GHI R0
+						PHI R1
+						LDI data
+						PLO R1
+						INP 4
+						OUT 4
+						BR 01
+				data:   $ 00
+						IDL
+				-->
+				SEX R1<br/>
+				GHI R0<br/>
+				PHI R1<br/>
+				LDI 0A<br/>
+				PL0 R1<br/>
+				INP 4<br/>
+				OUT 4<br/>
+				BR 01<br/>
+				$ 00<br/>
+			</td><td valign="top">E190B1F80AA16C64300100</td></tr>
+
+			<tr><td valign="top">Fibonacci sequence up to 255</td><td valign="top">
+        0: F8 00<br/>
+        2: BA<br/>
+        3: BB<br/>
+        4: BC<br/>
+        5: F8 1A<br/>
+        7: AA<br/>
+        8: F8 1B<br/>
+        A: AB<br/>
+        B: F8 00<br/>
+        D: AC<br/>
+        E: EA<br/>
+        F: F4<br/>
+        10: 5A<br/>
+        11: 64<br/>
+        12: 2A<br/>
+        13: EB<br/>
+        14: F4<br/>
+        15: 5B<br/>
+        16: 64<br/>
+        17: 2B<br/>
+        18: 30 0E<br/>
+        1A: 00<br/>
+        1B: 01<br/>
+			</td><td valign="top">F800BABBBCF81AAAF81BABF800ACEAF45A642AEBF45B642B300E0001</td></tr>
+
+			<tr><td valign="top">Register Gymnastics (self-modifying code)</td><td valign="top">
+				Too large to show code<br/>
+			</td><td valign="top">
+				90B1A1B2A2B3E2F840B4F804A4F850B5F805A5F860B6F806A6F870B7F807
+				A7F880B8F808A8F890B9F809A9F8A0BAF80AAAF8B0BBF80BABF8C0BCF80C
+				ACF8D0BDF80DADF8E0BEF80EAEF8F0BFF80FAF94A384B483A4FBF03277F8
+				4FA2F801F452F851A2F801F452F852A2F801F452F854A2F801F452304F00
+			</td></tr>
+
+			<tr><td valign="top"> </td><td valign="top"> </td><td valign="top"> </td></tr>
+
+			<tr><td valign="top">Test 0: LDN and IDL</td><td valign="top">
+				GHI R0 (90)<br/>
+				PHI R5 (B5)<br/>
+				LDI 07 (F8 07)<br/>
+				PLO R5 (A5)<br/>
+				LDN R5 (05)<br/>
+				IDL (00)<br/>
+				A07 (3B)<br/>
+			</td><td valign="top">90B5F807A505003B</td></tr>
+
+			<tr><td valign="top">Test 1 and 2: INC and DEC</td><td valign="top">
+                LDI 00 (F8 00)<br/>
+                PLO RF (AF)<br/>
+                PHI RF (BF)<br/>
+			    INC RF (1F)<br/>
+			    INC RF (1F)<br/>
+			    INC RF (1F)<br/>
+			    DEC RF (2F)<br/>
+			    DEC RF (2F)<br/>
+			    DEC RF (2F)<br/>
+				BR 04 (30 04)<br/>
+			</td><td valign="top">f800afbf1f1f1f2f2f2f3004</td></tr>
+
+			<tr><td valign="top">Test 4: LDA</td><td valign="top">
+				GHI R0 (90)<br/>
+				PHI R5 (B5)<br/>
+				LDI 0A (F8 0B)<br/>
+				PLO R5 (A5)<br/>
+				LDA RF (45)<br/>
+				LDA RF (45)<br/>
+				LDA RF (45)<br/>
+				LDA RF (45)<br/>
+				LDA RF (45)<br/>
+				IDL (00)<br/>
+				A0A (F0E1D2C3B4)<br/>
+			</td><td valign="top">90B5F80BA5454545454500F0E1D2C3B4</td></tr>
+
+			<tr><td valign="top">Test 5: STR</td><td valign="top">
+				GHI R0 (90)<br/>
+				PHI R5 (B5)<br/>
+				LDI 16 (F8 16)<br/>
+				PLO R5 (A5)<br/>
+				LDI BE (F8 BE)<br/>
+				STR R5 (55)<br/>
+				INC R5 (15)<br/>
+				LDI BE (F8 EF)<br/>
+				STR R5 (55)<br/>
+				INC R5 (15)<br/>
+				LDI BE (F8 BA)<br/>
+				STR R5 (55)<br/>
+				INC R5 (15)<br/>
+				LDI BE (F8 BE)<br/>
+				STR R5 (55)<br/>
+				INC R5 (15)<br/>
+				IDL (00)<br/>
+				A16 (00000000)<br/>
+			</td><td valign="top">90B5F816A5F8BE5515F8EF5515F8BA5515F8BE55150000000000</td></tr>
+
+			<tr><td valign="top">Test 6: IRX, OUT, INP</td><td valign="top">
+				GHI R0 (90)<br/>
+				PLO R5 (A5)<br/>
+				PHI R5 (B5)<br/>
+				SEX R5 (E5)<br/>
+				IRX (60)<br/>
+				IRX (60)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				OUT 4 (64)<br/>
+				LDI 16 (F8 16)<br/>
+				PLO R5 (A5)<br/>
+				INP 4 (6C)<br/>
+				INC R5 (15)<br/>
+				INP 4 (6C)<br/>
+				INC R5 (15)<br/>
+				INP 4 (6C)<br/>
+				INC R5 (15)<br/>
+				INP 4 (6C)<br/>
+				INC R5 (15)<br/>
+				IDL (00)<br/>
+				IDL (00)<br/>
+				IDL (00)<br/>
+				IDL (00)<br/>
+				IDL (00)<br/>
+				IDL (00)<br/>
+			</td><td valign="top">90A5B5E5606064646464F816A56C156C156C156C15000000000000</td></tr>
+
+			<tr><td valign="top">Test 7: Misc. ALU</td><td valign="top">
+				IDL (00)<br/>
+			</td><td valign="top">00</td></tr>
+
+			<tr><td valign="top">Test 8: GLO RN</td><td valign="top">
+				LDI 77 (F8 77)<br/>
+				PLO R5 (A5)<br/>
+				LDI 00 (F8 00)<br/>
+				GLO R5 (85)<br/>
+				IDL (00)<br/>
+			</td><td valign="top">F877A5F8008500</td></tr>
+
+			<tr><td valign="top">Test 9: GHI RN</td><td valign="top">
+				LDI 77 (F8 77)<br/>
+				PHI R5 (B5)<br/>
+				LDI 00 (F8 00)<br/>
+				GHI R5 (95)<br/>
+				IDL (00)<br/>
+			</td><td valign="top">F877B5F8009500</td></tr>
+
+			<tr><td valign="top">Test A: PLO RN</td><td valign="top">
+				LDI 77 (F8 77)<br/>
+				PLO R5 (A5)<br/>
+				IDL (00)<br/>
+			</td><td valign="top">F877A500</td></tr>
+
+			<tr><td valign="top">Test B: PHI RN</td><td valign="top">
+				LDI 77 (F8 77)<br/>
+				PHI R5 (B5)<br/>
+				IDL (00)<br/>
+			</td><td valign="top">F877B500</td></tr>
+
+			<tr><td valign="top">Test C: Long Branches</td><td valign="top">
+				IDL (00)<br/>
+			</td><td valign="top">00</td></tr>
+
+			<tr><td valign="top">Test D: SEP</td><td valign="top">
+				GHI R0 (90)<br/>
+				PHI R1 (B1)<br/>
+				LDI 09 (F8 09)<br/>
+				PLO R1 (A1)<br/>
+				SEQ (7B)<br/>
+				SEP R1 (D1)<br/>
+				BR  05 (30 05)<br/>
+				REQ (7A)<br/>
+				SEP R0 (D0)<br/>
+				BR  09 (30 09)<br/>
+			</td><td valign="top">90B1F809A17BD130057AD03009</td></tr>
+
+			<tr><td valign="top">Test E: SEX</td><td valign="top">
+				IDL (00)<br/>
+			</td><td valign="top">00</td></tr>
+
+			<tr><td valign="top">Test F: Misc. ALU</td><td valign="top">
+				IDL (00)<br/>
+			</td><td valign="top">00</td></tr>
+
+<!-- Herb Johnson's Test Code (with my header added, and 00 -> C4):
+
+0000: C0 01 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0010: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0020: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0030: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0040: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0050: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0060: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0070: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0080: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0090: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00A0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00B0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00C0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00D0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00E0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+00F0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0100: C4 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F
+0110: 10 11 12 13 14 15 16 17  18 19 1A 1B 1C 1D 1E 1F
+0120: 20 21 22 23 24 25 26 27  28 29 2A 2B 2C 2D 2E 2F
+0130: 30 30 31 00 32 34 33 36  34 38 35 3A 36 3C 37 3E
+0140: 38 39 41 3A 43 3B 45 3C  47 3D 49 3E 4B 3F 4D 40
+0150: 41 42 43 44 45 46 47 48  49 4A 4B 4C 4D 4E 4F 50
+0160: 51 52 53 54 55 56 57 58  59 5A 5B 5C 5D 5E 5F 60
+0170: 60 61 62 63 64 65 66 67  68 69 6A 6B 6C 6D 6E 6F
+0180: 70 71 72 73 74 75 76 77  78 79 7A 7B 7C 00 7D 00
+0190: 7E 7F 00 80 81 82 83 84  85 86 87 88 89 8A 8B 8C
+01A0: 8D 8E 8F 90 91 92 93 94  95 96 97 98 99 9A 9B 9C
+01B0: 9D 9E 9F A0 A1 A2 A3 A4  A5 A6 A7 A8 A9 AA AB AC
+01C0: AD AE AF B0 B1 B2 B3 B4  B5 B6 B7 B8 B9 BA BB BC
+01D0: BD BE BF C0 01 00 C1 01  00 C2 01 00 C3 01 00 C4
+01E0: C5 C6 C7 C8 01 00 C9 01  00 CA 01 00 CB 01 00 CC
+01F0: CD CE CF D0 D1 D2 D3 D4  D5 D6 D7 D8 D9 DA DB DC
+0200: DD DE DF E0 E1 E2 E3 E4  E5 E6 E7 E8 E9 EA EB EC
+0210: ED EE EF F0 F1 F2 F3 F4  F5 F6 F7 F8 00 F9 00 FA
+0220: 00 FB 00 FC 00 FD 00 FE  FF 00 00 00 00 00 00 00
+0230: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0240: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0250: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0260: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0270: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0280: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+0290: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02A0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02B0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02C0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02D0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02E0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+02F0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 30
+0300: 00 68 00 68 01 68 02 68  03 68 04 68 05 68 06 68
+0310: 07 68 08 68 09 68 0A 68  0B 68 0C 68 0D 68 20 01
+0320: 00 68 21 01 00 68 22 01  00 68 23 01 00 68 24 01
+0330: 00 68 25 01 00 68 26 01  00 68 27 01 00 68 28 01
+0340: 00 68 29 01 00 68 2A 01  00 68 2B 01 00 68 2C 01
+0350: 00 68 2D 01 00 68 2E 01  00 68 2F 01 00 68 3E 5D
+0360: 68 3F 60 68 60 68 61 68  62 68 63 68 64 68 65 68
+0370: 66 68 67 68 68 68 69 68  6A 68 6B 68 6C 68 6D 68
+0380: 6E 68 6F 68 74 68 76 68  77 68 7C 00 68 7F 00 68
+0390: 80 01 00 68 81 01 00 68  82 01 00 68 83 01 00 68
+03A0: 84 01 00 68 85 01 00 68  86 01 00 68 87 01 00 68
+03B0: 88 01 00 68 89 01 00 68  8A 01 00 68 8B 01 00 68
+03C0: 8C 01 00 68 8D 01 00 68  8E 01 00 68 8F 01 00 68
+03D0: 90 68 91 68 92 68 93 68  94 68 95 68 96 68 97 68
+03E0: 98 68 99 68 9A 68 9B 68  9C 68 9D 68 9E 68 9F 68
+03F0: A0 68 A1 68 A2 68 A3 68  A4 68 A5 68 A6 68 A7 68
+0400: A8 68 A9 68 AA 68 AB 68  AC 68 AD 68 AE 68 AF 68
+0410: B0 68 B1 68 B2 68 B3 68  B4 68 B5 68 B6 68 B7 68
+0420: B8 68 B9 68 BA 68 BB 68  BC 68 BD 68 BE 68 BF 68
+0430: C0 01 00 68 C1 01 00 68  C2 01 00 68 C3 01 00 68
+0440: C4 01 00 68 C5 01 00 68  C6 01 00 68 C7 01 00 68
+0450: C8 01 00 68 C9 01 00 68  CA 01 00 68 CB 01 00 68
+0460: CC 01 00 68 CD 01 00 68  CE 01 00 68 CF 01 00 68
+0470: F4 68 F7 68 FC 00 68 FF  00 F8 01 B2 F8 00 A2 F8
+0480: 00 B0 D5 D4 04 7F D4 04  7F D5 A5 A5 A5 A5 A5 A5
+0490: A5 A5 A5 A5 A5 A5 A5 A5  A5 A5 A5 A5 A5 A5 00 00
+04A0: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
+04B0: 00 00 FF 01 00 00 FF FF  00 00 00 00 00 00 00 00
+04C0: 00 00 00 00 00 00 00 00  45 58 50 4C 4F 53 49 4F
+04D0: 4E 7F 27 22 45 58 50 4C  4F 53 49 4F 4E 0A 0D 22
+04E0: 27 7F 46 4F 4F 30 0A 0D  01 FF 68 65 6C 6C 6F 20
+04F0: 74 68 65 72 65 30 F2 12  EF 43 21 24 AB FF 00 00
+0500: 00 00 00 00 00 00 00 00  C4 C4 C4 C4 C4 C4 C4 C4
+0510: C4 C4 C4 C4 00
+-->
+
+		</table>
+	</td></tr>
+</table>
+</center>
+
+</body>
+
+</html>
