@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 
-
 <head>
-
+<meta charset="utf-8">
 <style>
 	table, tr, th, td {
 		border: 1px solid black;
@@ -100,6 +99,7 @@ mem_first_shown = 0;
 mem_num_shown = 16;
 mem_pc_tracked = true;
 mem_pc_centered = false;
+mem_x_top = false;
 
 in1 = [0x10,0x01,0x10,0x01,0x10];
 in1index = 0;
@@ -246,6 +246,12 @@ function show_mem() {
 	if (mem_pc_centered) {
 		// Force Memory to show PC as centered
 		mem_first_shown = rr[rp] + 1 - (mem_num_shown / 2);
+		if (mem_first_shown < 0) {
+			mem_first_shown = 0;
+		}
+	} else if (mem_x_top) {
+		// Force Memory to show X at the top (stack grows up, so show from X down)
+		mem_first_shown = rr[rx];
 		if (mem_first_shown < 0) {
 			mem_first_shown = 0;
 		}
@@ -579,21 +585,43 @@ function toggle_led_out() {
 	}
 }
 
+function update_tracking() {
+	document.getElementById ("TrackedPC").checked = mem_pc_tracked;
+	document.getElementById ("CenterPC").checked = mem_pc_centered;
+	document.getElementById ("XatTop").checked = mem_x_top;
+}
+
 function toggle_pc_tracked() {
 	if (document.getElementById ("TrackedPC").checked) {
 		mem_pc_tracked = true;
+		mem_x_top = false;
 	} else {
 		mem_pc_tracked = false;
 	}
+	update_tracking();
 	show_mem();
 }
 
 function toggle_pc_centered() {
 	if (document.getElementById ("CenterPC").checked) {
 		mem_pc_centered = true;
+		mem_x_top = false;
 	} else {
 		mem_pc_centered = false;
 	}
+	update_tracking();
+	show_mem();
+}
+
+function toggle_x_top() {
+	if (document.getElementById ("XatTop").checked) {
+		mem_x_top = true;
+		mem_pc_tracked = false;
+		mem_pc_centered = false;
+	} else {
+		mem_x_top = false;
+	}
+	update_tracking();
 	show_mem();
 }
 
@@ -602,6 +630,7 @@ function disable_pc_tracking() {
 	document.getElementById ("CenterPC").checked = false;
 	mem_pc_tracked = false;
 	mem_pc_centered = false;
+	mem_x_top = false;
 }
 
 function set_mem_top() {
@@ -744,6 +773,7 @@ function run_stop() {
 		document.getElementById('RunStop').innerHTML = "Run/<u>Stop</u>";
 		document.getElementById('RunStop').setAttribute("style", "");
 		stop();
+		/*
 		console.log ( "Opcodes Used:" );
 		for (i=0; i<16; i++) {
 			s = " " + hex2(i) + ":  ";
@@ -752,6 +782,7 @@ function run_stop() {
 			}
 			console.log ( s + "\n" );
 		}
+		*/
 		// console.log ( "Used:\n" + used_ops );
 	}
 }
@@ -1932,8 +1963,9 @@ FACE 0F 1802
 	<tr><td style="border: none;"><center><button type="button" onclick="mem_bot();"><span style="font-weight: bold; font-size: 200%;"> &#x25BC </span></button></center></td></tr>
 	<!-- <tr><td style="border: none;"><center><button type="button" onclick="mem_bot();"><span style="font-weight: bold; font-size: 250%;"> &#x26BA </span></button></center></td></tr> -->
 	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
-	<tr><td style="border: none;"><center><input type="checkbox" id="TrackedPC" checked onclick="toggle_pc_tracked();">PC Tracked</center></td></tr>
+	<tr><td style="border: none;"><center><input type="checkbox" id="TrackedPC" checked onclick="toggle_pc_tracked();">PC Shown</center></td></tr>
 	<tr><td style="border: none;"><center><input type="checkbox" id="CenterPC" onclick="toggle_pc_centered();">PC Centered</center></td></tr>
+	<tr><td style="border: none;"><center><input type="checkbox" id="XatTop" onclick="toggle_x_top();">MEM[RX] at Top</center></td></tr>
 	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
 	<!-- <tr><td style="border: none;"><center>Log OpCodes:<br/><textarea id="dump_code" rows="1" cols="3">  </textarea></center></td></tr> -->
 	<tr><td style="border: none;"><center>Log OpCodes:<br/><input type="text" id="dump_code" size="3"></center></td></tr>
