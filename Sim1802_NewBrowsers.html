@@ -2346,6 +2346,172 @@ Machine Code for better_memory_sequencer:
         1B: 01<br/>
 			</td><td valign="top">F800BABBBCF81AAAF81BABF800ACEAF45A642AEBF45B642B300E0001</td></tr>
 
+
+
+			<tr><td valign="top">Test ALU from https://en.wikipedia.org/wiki/RCA_1802</td><td valign="top">
+<!-- Original examples from Wikipedia
+
+..  TEST EVENT FLAGS
+LOOP
+B4 EFbranch; because EF pins pins are active low this makes it behave as a not gate
+REQ
+BR LOOP
+EFbranch
+SEQ
+BR LOOP
+
+
+..  TEST ALU OPS
+0000 90         GHI 0     .. SET UP R6
+0001 B6         PHI 6
+0002 F829       LDI DOIT  .. FOR INPUT OF OPCODE
+0004 A6         PLO 6
+0005 E0         SEX 0     .. (X=0 ALREADY)
+0006 6400       OUT 4,00  .. ANNOUNCE US READY
+0008 E6         SEX 6     .. NOW X=6
+0009 3F09       BN4 *     .. WAIT FOR IT
+000B 6C         INP 4     .. OK, GET IT
+000C 64         OUT 4     .. AND ECHO TO DISPLAY
+000D 370D       B4 *      .. WAIT FOR RELEASE
+000F F860       LDI #60   .. NOW GET READY FOR
+0011 A6         PLO 6     .. FIRST OPERAND
+0012 E0         SEX 0     .. SAY SO
+0013 6401       OUT 4,01
+0015 3F15       BN4 *
+0017 E6         SEX 6     .. TAKE IT IN AND ECHO
+0018 6C         INP 4     .. (TO 0060)
+0019 64         OUT 4     .. (ALSO INCREMENT R6)
+001A 371A       B4 *
+001C E0         SEX 0     .. DITTO SECOND OPERAND
+001D 6402       OUT 4,02
+001F E6         SEX 6
+0020 3F20 LOOP: BN4 *     .. WAIT FOR IT
+0022 6C         INP 4     .. GET IT (NOTE: X=6)
+0023 64         OUT 4     .. ECHO IT
+0024 3724       B4 *      .. WAIT FOR RELEASE
+0026 26         DEC 6     .. BACK UP R6 TO 0060
+0027 26         DEC 6
+0028 46         LDA 6     .. GET 1ST OPERAND TO D
+0029 C4   DOIT: NOP       .. DO OPERATION
+002A C4         NOP       .. (SPARE)
+002B 26         DEC 6     .. BACK TO 0060
+002C 56         STR 6     .. OUTPUT RESULT
+002D 64         OUT 4     .. (X=6 STILL)
+002E 7A         REQ       .. TURN OFF Q
+002F CA0020     LBNZ LOOP .. THEN IF ZERO,
+0032 7B         SEQ       .. TURN IT ON AGAIN
+0033 3020       BR LOOP   .. REPEAT IN ANY CASE
+
+Note: The above routine presumes that the CDP1802 microprocessor is in an 
+initial reset state (or that it has been set as such prior to executing 
+this code). Therefore, the program counter (PC) and the X indirect register 
+'pointer' are both set to 16-bit register R0. That is why you can output an 
+immediate value, as in the example 'OUT 4,00', because PC and X are both 
+pointing to R0. The PC is incremented after the opcode instruction byte is 
+retrieved from memory, so it points to the next address when the OUT 4 is 
+executed. Therefore, it outputs the value in memory pointed to by RX = R0, 
+which is the next immediate byte. The OUT instruction also increments the 
+X register, which is R0, which is also the PC, so it outputs the immediate 
+value after the OUT and continues program execution at the next instruction 
+address after the immediate value. This is why you see the routine set X (SEX) 
+to register R6 and R0 as needed. Also note that, although the OUT opcode 
+increments the RX register, to easily output a section of memory ('buffer'), 
+INP does not. It stores the value at the address pointed to by RX and into 
+the D 8-bit data byte accumulator, but RX is not modified.
+
+The routine also presumes that OUT 4 will display the value in the CPU 
+system's 8-bit LED or 2-digit hex display, and IN 4 gets the value from 
+the eight toggle switches (or possibly the hex keypad). The BN4 opcode 
+(loop; * = 'this address'), "branch if the single-bit input EF4 line is lo", 
+is used to test if the momentary 'Input' pushbutton is pressed. The B4 opcode 
+('if hi') loop waits for the button to be released. SEQ and REQ turn the single 
+Q line, which is usually attached to an LED, on and off. 
+-->
+
+; TEST ALU OPS<br/>
+GHI 0      ; SET UP R6<br/>
+PHI 6<br/>
+LDI DOIT   ; FOR INPUT OF OPCODE<br/>
+PLO 6<br/>
+SEX 0      ; (X=0 ALREADY)<br/>
+OUT 4,00   ; ANNOUNCE US READY<br/>
+SEX 6      ; NOW X=6<br/>
+BN4 *      ; WAIT FOR IT<br/>
+INP 4      ; OK, GET IT<br/>
+OUT 4      ; AND ECHO TO DISPLAY<br/>
+B4 *       ; WAIT FOR RELEASE<br/>
+LDI #60    ; NOW GET READY FOR<br/>
+PLO 6      ; FIRST OPERAND<br/>
+SEX 0      ; SAY SO<br/>
+OUT 4,01<br/>
+BN4 *<br/>
+SEX 6      ; TAKE IT IN AND ECHO<br/>
+INP 4      ; (TO 0060)<br/>
+OUT 4      ; (ALSO INCREMENT R6)<br/>
+B4 *<br/>
+SEX 0      ; DITTO SECOND OPERAND<br/>
+OUT 4,02<br/>
+SEX 6<br/>
+BN4 *      ; WAIT FOR IT<br/>
+INP 4      ; GET IT (NOTE: X=6)<br/>
+OUT 4      ; ECHO IT<br/>
+B4 *       ; WAIT FOR RELEASE<br/>
+DEC 6      ; BACK UP R6 TO 0060<br/>
+DEC 6<br/>
+LDA 6      ; GET 1ST OPERAND TO D<br/>
+DOIT:  NOP        ; DO OPERATION<br/>
+NOP        ; (SPARE)<br/>
+DEC 6      ; BACK TO 0060<br/>
+STR 6      ; OUTPUT RESULT<br/>
+OUT 4      ; (X=6 STILL)<br/>
+REQ        ; TURN OFF Q<br/>
+LBNZ LOOP  ; THEN IF ZERO,<br/>
+SEQ        ; TURN IT ON AGAIN<br/>
+BR LOOP    ; REPEAT IN ANY CASE<br/>
+<br/>
+
+			</td><td valign="top">
+90<br/>
+B6<br/>
+F8 29<br/>
+A6<br/>
+E0<br/>
+64 00<br/>
+E6<br/>
+3F 09<br/>
+6C<br/>
+64<br/>
+37 0D<br/>
+F8 60<br/>
+A6<br/>
+E0<br/>
+64 01<br/>
+3F 15<br/>
+E6<br/>
+6C<br/>
+64<br/>
+37 1A<br/>
+E0<br/>
+64 02<br/>
+E6<br/>
+3F 20<br/>
+6C<br/>
+64<br/>
+37 24<br/>
+26<br/>
+26<br/>
+46<br/>
+C4<br/>
+C4<br/>
+26<br/>
+56<br/>
+64<br/>
+7A<br/>
+CA 0020<br/>
+7B<br/>
+30 20<br/>
+			</td></tr>
+
 			<tr><td valign="top">Register Gymnastics (self-modifying code)</td><td valign="top">
 				Too large to show code<br/>
 			</td><td valign="top">
