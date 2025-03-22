@@ -123,7 +123,7 @@ out5 = [0x50,0x05,0x50,0x05,0x50];
 
 in6 = [0x60,0x06,0x60,0x06,0x60];
 in6index = 0;
-out6 = [0x60,0x06,0x60,0x06,0x60];
+out6 = [];
 
 in7 = [0x70,0x07,0x70,0x07,0x70];
 in7index = 0;
@@ -179,6 +179,10 @@ function power_on() {
 	show_out();
 	show_out_LED();
 	get_in();
+	da = document.getElementById('drawing_area');
+  ctxt = da.getContext('2d');
+  ctxt.fillStyle = 'black';
+  ctxt.fillRect(0, 0, da.width/2, da.height/2);
 }
 
 function cpu_reset() {
@@ -576,6 +580,25 @@ function update_enable_disable() {
 	}
 }
 
+showing_graphics = false;
+
+function graphics_enable_disable() {
+	showing_graphics = !showing_graphics;
+	if (showing_graphics) {
+		document.getElementById('ShowGraphics').innerHTML = 'Graphics <b><u>On</u></b>/Off';
+		show_reg();
+		show_Q_LED();
+		show_mem();
+		show_instr();
+		show_out();
+		show_out_LED();
+		document.getElementById("drawing_area").style.display = "";
+	} else {
+		document.getElementById('ShowGraphics').innerHTML = 'Graphics On/<b><u>Off</u></b>';
+		document.getElementById("drawing_area").style.display = "none";
+	}
+}
+
 function toggle_led_out() {
 	show_led_output = !show_led_output;
 	if (show_led_output) {
@@ -693,6 +716,7 @@ function mem_bot() {
 function clear_out() {
 	out4 = [];
 	document.getElementById('Out4').value = "";
+	clear_graphics();
 }
 
 function show_out() {
@@ -701,6 +725,42 @@ function show_out() {
 		text = text + hex2(out4[i]);
 	}
 	document.getElementById('Out4').value = text;
+	show_graphics();
+}
+
+function clear_graphics() {
+	out6 = [];
+	document.getElementById('GraphicsText').value = "";
+	show_graphics();
+}
+
+graphics_index = 0;
+function show_graphics() {
+	da = document.getElementById('drawing_area');
+  ctxt = da.getContext('2d');
+
+  // Clear the background
+  ctxt.fillStyle = '#000000';
+  ctxt.fillRect(0, 0, da.width, da.height);
+
+  // Draw the graphics from out6
+  ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
+	for (i=0; i<out6.length; i++) {
+    ctxt.beginPath();
+    x = Math.round(Math.random() * 256) % 256;
+    y = Math.round(Math.random() * 256) % 256;
+    ctxt.moveTo ( x, y );
+    x = Math.round(Math.random() * 256) % 256;
+    y = Math.round(Math.random() * 256) % 256;
+    ctxt.lineTo ( x, y );
+    ctxt.stroke();
+	}
+
+	text = ""
+	for (i=0; i<out6.length; i++) {
+		text = text + hex2(out6[i]);
+	}
+	document.getElementById('GraphicsText').value = text;
 }
 
 function show_out_LED() {
@@ -1893,8 +1953,11 @@ FACE 0F 1802
 <tr><td style="border: none;" valign="top"><textarea id="Out4" rows="2" cols="20">
 </textarea></td></tr>
 
+<tr><td style="border: none;" valign="top"><textarea id="GraphicsText" rows="2" cols="20">GraphicsText
+</textarea></td></tr>
+
 <tr><td style="border: none;" valign="top">
-<center><button type="button" id="Clear_Input" onclick="clear_out();">Clear Output</button></center>
+<center><button type="button" id="Clear_Input" onclick="clear_out();clear_graphics();">Clear Output</button></center>
 </td></tr>
 
 </table></td>
@@ -1970,14 +2033,22 @@ FACE 0F 1802
 	<!-- <tr><td style="border: none;"><center>Log OpCodes:<br/><textarea id="dump_code" rows="1" cols="3">  </textarea></center></td></tr> -->
 	<tr><td style="border: none;"><center>Log OpCodes:<br/><input type="text" id="dump_code" size="3"></center></td></tr>
 	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
-	<tr><td style="border: none;"><center><button type="button" onclick="update_enable_disable();" id="UpdateEnDis">Update <b><u>On</u></b>/Off</button></center></td></tr>
-
+	<tr><td style="border: none;"><center><button type="button" onclick="update_enable_disable();" id="UpdateEnDis">Update <b><u>On</u></b>/Off</button>
+	                                 <br/><button type="button" onclick="graphics_enable_disable();" id="ShowGraphics">Graphics On/<b><u>Off</u></b></button></center></td></tr>
 
 </table></td>
 
 </tr>
 
 </table>
+
+<canvas
+  id="drawing_area"
+  width="256" height="256"
+  style="margin:2px; padding:2px; border:2px solid #cccccc; display:none;"
+>
+  Your browser does not support the HTML5 canvas tag.
+</canvas>
 
 <p/><hr/><p/>
 
