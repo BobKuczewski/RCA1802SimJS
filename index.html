@@ -736,31 +736,62 @@ function clear_graphics() {
 
 graphics_index = 0;
 function show_graphics() {
+  // console.log ( "top of show_graphics" );
 	da = document.getElementById('drawing_area');
   ctxt = da.getContext('2d');
+
+  // Show the graphics data (for now)
+	text = ""
+	for (i=0; i<out6.length; i++) {
+		text = text + hex2(out6[i]);
+	}
+	document.getElementById('GraphicsText').value = text;
 
   // Clear the background
   ctxt.fillStyle = '#000000';
   ctxt.fillRect(0, 0, da.width, da.height);
 
   // Draw the graphics from out6
-  ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
-	for (i=0; i<out6.length; i++) {
-    ctxt.beginPath();
-    x = Math.round(Math.random() * 256) % 256;
-    y = Math.round(Math.random() * 256) % 256;
-    ctxt.moveTo ( x, y );
-    x = Math.round(Math.random() * 256) % 256;
-    y = Math.round(Math.random() * 256) % 256;
-    ctxt.lineTo ( x, y );
-    ctxt.stroke();
-	}
+  // 1,x,y = Move to x,y
+  // 2,x,y = Draw to x,y
+  // 3,r,g,b = Set Color to r,g,b
+  // 4,r,g,b = Erase Screen to r,g,b
 
-	text = ""
-	for (i=0; i<out6.length; i++) {
-		text = text + hex2(out6[i]);
+  ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
+  i = 0;
+  ctxt.beginPath();
+  while (i < (out6.length-4)) {
+    // console.log ( "i = " + i + ", out6[i] = " + out6[i] );
+    // for (i=0; i<out6.length; i++) {
+    if (out6[i] == 1)        { // Move command x y
+      if (i+2 < out6.length) {
+        x = out6[i+1];
+        y = out6[i+2];
+        ctxt.moveTo ( x, y );
+        i = i + 3;
+      }
+    } else if (out6[i] == 2) { // Draw command x y
+      if (i+2 < out6.length) {
+        x = out6[i+1];
+        y = out6[i+2];
+        ctxt.lineTo ( x, y );
+        i = i + 3;
+      }
+    } else if (out6[i] == 3) { // Color command r g b
+      if (i+3 < out6.length) {
+        i = i + 4;
+      }
+    } else if (out6[i] == 4) { // Clear command r g b
+      if (i+3 < out6.length) {
+        i = i + 4;
+      }
+    } else {
+      i = i + 1;
+    }
 	}
-	document.getElementById('GraphicsText').value = text;
+  ctxt.stroke();
+  // console.log ( "bot of show_graphics" );
+
 }
 
 function show_out_LED() {
