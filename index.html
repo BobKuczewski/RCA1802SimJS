@@ -759,12 +759,12 @@ function show_graphics() {
 
   ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
   i = 0;
-  ctxt.beginPath();
-  while (i < (out6.length-4)) {
+  while (i < (out6.length-4)) {  // This should be a better check!!!!!!!!!!!!
     // console.log ( "i = " + i + ", out6[i] = " + out6[i] );
     // for (i=0; i<out6.length; i++) {
     if (out6[i] == 1)        { // Move command x y
       if (i+2 < out6.length) {
+        ctxt.beginPath();
         x = out6[i+1];
         y = out6[i+2];
         ctxt.moveTo ( x, y );
@@ -776,20 +776,24 @@ function show_graphics() {
         y = out6[i+2];
         ctxt.lineTo ( x, y );
         i = i + 3;
+        ctxt.stroke();
       }
     } else if (out6[i] == 3) { // Color command r g b
       if (i+3 < out6.length) {
+        ctxt.strokeStyle = "#" + hex2(out6[i+1]) + hex2(out6[i+2]) + hex2(out6[i+3]);
         i = i + 4;
       }
     } else if (out6[i] == 4) { // Clear command r g b
       if (i+3 < out6.length) {
+        // Clear the background
+        ctxt.fillStyle = "#" + hex2(out6[i+1]) + hex2(out6[i+2]) + hex2(out6[i+3]);
+        ctxt.fillRect(0, 0, da.width, da.height);
         i = i + 4;
       }
     } else {
       i = i + 1;
     }
 	}
-  ctxt.stroke();
   // console.log ( "bot of show_graphics" );
 
 }
@@ -2584,6 +2588,19 @@ Machine Code for better_memory_sequencer:
 			                      Intel Hex Format:<br/>
 			                      &nbsp; :1C000000F800BABBBCF81AAAF81BABF800ACEAF45A642AEBF45B642B300E0001CF<br/>
 			                      &nbsp; :00001C01E3</td></tr>
+
+
+			<tr><td valign="top">Bouncing Lines</td><td valign="top">
+			</td><td valign="top">Intel Hex Format:<br/>
+			                      &nbsp; :20000000F800B8B9BABBBCBDBEBFF896ACF88CADF882AEF8A2A8F8C3A7F880ABF881AFEB9F<br/>
+                            &nbsp; :20002000F8045B662BF8005B662B662B662B7BEBD7EBF8015B662BF878AA0A5B662BF87944<br/>
+                            &nbsp; :20004000AA0A5B662BF8025B662BF87AAA0A5B662BF87BAA0A5B662B7AF878AAF87CA9D86C<br/>
+                            &nbsp; :20006000F879AAF87DA9D8F87AAAF87EA9D8F87BAAF87FA9D8302E0032FA0A00FBFA0608B0<br/>
+                            &nbsp; :2000800000000000000000000000000000336699CCFFFFFFFFFFFFFFFFFFFFFFCC9966336F<br/>
+                            &nbsp; :2000A000EED0097E33B40AE9F45A3BB2F75AF800F75930A10AE9F45A33C0F75AF800F759AF<br/>
+                            &nbsp; :2000C00030A1D0F803EF5F662FEC8CFFA03AD2F882AC66ED8DFFA03ADCF882AD66EE8EFFBB<br/>
+                            &nbsp; :0900E000A03AE6F882AE6630C2D7<br/>
+                            &nbsp; :0000E90116</td></tr>
 
 			<tr><td valign="top">Register Gymnastics (self-modifying code)</td><td valign="top">
 				Too large to show code<br/>
