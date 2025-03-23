@@ -2589,8 +2589,55 @@ Machine Code for better_memory_sequencer:
 			                      &nbsp; :1C000000F800BABBBCF81AAAF81BABF800ACEAF45A642AEBF45B642B300E0001CF<br/>
 			                      &nbsp; :00001C01E3</td></tr>
 
+			<tr><td valign="top">Draw Green Square</td><td valign="top"><pre>
+GPort  EQU 6
+START  ORG $00
+       LDI 00
+       PHI $0F
+       PHI $0E
+       LDI DATA
+       PLO $0F
+       SEX $0F
+       LDI EDATA-DATA
+       PLO $0E
+SEND   OUT GPort
+       DEC $0E
+       GLO $0E
+       BNZ SEND
+       IDL
+; Graphics commands
+DATA   BYTE $03 ; Color
+       BYTE $00
+       BYTE $FF
+       BYTE $00
+       BYTE $01 ; Move
+       BYTE $50
+       BYTE $50
+       BYTE $02 ; Draw
+       BYTE $B0
+       BYTE $50
+       BYTE $02 ; Draw
+       BYTE $B0
+       BYTE $B0
+       BYTE $02 ; Draw
+       BYTE $50
+       BYTE $B0
+       BYTE $02 ; Draw
+       BYTE $50
+       BYTE $50
+       BYTE $03 ; Color
+       BYTE $00
+       BYTE $00
+       BYTE $00
+EDATA  END
+</pre></td>
+      <td valign="top">:20000000F800BFBEF811AFEFF817AE662E8E3A0B000300FF0001505002B05002B0B0025047<br/>
+			                 :08002000B00250500300000083<br/>
+			                 :00002801D7</td></tr>
+
 
 			<tr><td valign="top">Bouncing Lines</td><td valign="top">
+			  Too large to show code<br/>
 			</td><td valign="top">Intel Hex Format:<br/>
 			                      &nbsp; :20000000F800B8B9BABBBCBDBEBFF896ACF88CADF882AEF8A2A8F8C3A7F880ABF881AFEB9F<br/>
                             &nbsp; :20002000F8045B662BF8005B662B662B662B7BEBD7EBF8015B662BF878AA0A5B662BF87944<br/>
