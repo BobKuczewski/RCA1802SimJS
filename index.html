@@ -2667,150 +2667,150 @@ EDATA  END
 
 
 			<tr><td valign="top">Draw Square Spiral</td><td valign="top"><pre>
-; 1802 program to draw a square spiral
+; Draw a square spiral
 
-GPort  EQU $6    ; Graphics port number
+GPort  EQU $6
 
-RDel   EQU $D    ; Register to point to current Delta
-RCmd   EQU $C    ; Register to point to Commands
-Step   EQU $8    ; How many pixels to expand spiral
+RDel   EQU $D
+RCmd   EQU $C
+Step   EQU $8
 
 START  ORG 00H
 
-       LDI 0     ; Load 0 (could save a byte here)
-       PHI RDel  ; Set high byte of RDel register to 0
-       PHI RCmd  ; Set high byte of RCmd register to 0
-       PLO RCmd  ; Set low byte of RCmd register to 0
-       LDI Delta ; Load address of the changing Delta
-       PLO RDel  ; Set RDel register to point at Delta
-       SEX RCmd  ; Reset RCmd to point at Cmd
+       LDI 0
+       PHI RDel
+       PHI RCmd
+       PLO RCmd
+       LDI Delta
+       PLO RDel
+       SEX RCmd
 
-       ; Clear screen to dark green
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Set RCmd to point at Cmd
-       LDI $4    ; Clear with background command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Send command and advance X (RCmd)
-       LDI $00   ; Red value = 0
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Send Red and advance X (RCmd)
-       LDI $60   ; Green value = $60
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Send Green and advance X (RCmd)
-       LDI $00   ; Blue value = 0
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Send Blue and advance X (RCmd)
+; Clear to dark green
+       LDI Cmd
+       PLO RCmd
+       LDI $4
+       STR RCmd
+       OUT GPort
+       LDI $00
+       STR RCmd
+       OUT GPort
+       LDI $60
+       STR RCmd
+       OUT GPort
+       LDI $00
+       STR RCmd
+       OUT GPort
 
-       ; Set drawing color to green
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $3    ; Set Color command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
-       LDI $00   ; Red
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
-       LDI $FF   ; Green
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
-       LDI $00   ; Blue
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
+; Set color to green
+       LDI Cmd
+       PLO RCmd
+       LDI $3
+       STR RCmd
+       OUT GPort
+       LDI $00
+       STR RCmd
+       OUT GPort
+       LDI $FF
+       STR RCmd
+       OUT GPort
+       LDI $00
+       STR RCmd
+       OUT GPort
 
-       ; Move to the Center
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $1    ; Move command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
-       LDI $80   ; x
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
-       LDI $80   ; y
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
+; Move to the Center
+       LDI Cmd
+       PLO RCmd
+       LDI $1
+       STR RCmd
+       OUT GPort
+       LDI $80
+       STR RCmd
+       OUT GPort
+       LDI $80
+       STR RCmd
+       OUT GPort
 
 Draw
 
-       ; Draw a Vertical Segment Up
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $2    ; Draw command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Output Command and Advance X (RCmd)
-       OUT GPort ; Output x (same as last x) and Advance X (RCmd)
-       LDN RCmd  ; Load y
-       SEX RDel  ; Set X to point to Delta
-       SM        ; Change y by current Delta
-       SEX RCmd  ; Set X back to Cmd buffer
-       STR RCmd  ; Store y in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
+; Draw a line Up
+       LDI Cmd
+       PLO RCmd
+       LDI $2
+       STR RCmd
+       OUT GPort
+       OUT GPort
+       LDN RCmd
+       SEX RDel
+       SM
+       SEX RCmd
+       STR RCmd
+       OUT GPort
 
-       ; Draw a Horizontal Segment Right
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $2    ; Draw command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Output Command and Advance X (RCmd)
-       LDN RCmd  ; Load x value
-       SEX RDel  ; Set X to point to Delta
-       ADD       ; Change x by current Delta
-       SEX RCmd  ; Set X back to Cmd buffer
-       STR RCmd  ; Store x in RCmd for output via X
-       OUT GPort ; Output x and Advance X (RCmd)
-       OUT GPort ; Output y (same as last y) and Advance X (RCmd)
+; Draw a line Right
+       LDI Cmd
+       PLO RCmd
+       LDI $2
+       STR RCmd
+       OUT GPort
+       LDN RCmd
+       SEX RDel
+       ADD
+       SEX RCmd
+       STR RCmd
+       OUT GPort
+       OUT GPort
 
-       ; Increase the step size
-       SEX RDel  ; Set X to be the Delta Register
-       LDI Step  ; Load the step size
-       ADD       ; Add Step to Delta
-       BDF Done  ; If it causes an overflow, then we're done
-       STR RDel  ; Store the new step in Delta
-       SEX RCmd  ; Set X back to Rcmd
+; Increase step size
+       SEX RDel
+       LDI Step
+       ADD
+       BDF Done
+       STR RDel
+       SEX RCmd
 
-       ; Draw a Vertical Segment Down
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $2    ; Draw command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Output Command and Advance X (RCmd)
-       OUT GPort ; Output x (same as last x) and Advance X (RCmd)
-       LDN RCmd  ; Load y
-       SEX RDel  ; Set X to point to Delta
-       ADD       ; Change y by current Delta
-       SEX RCmd  ; Set X back to Cmd buffer
-       STR RCmd  ; Store y in RCmd for output via X
-       OUT GPort ; Out and Advance X (RCmd)
+; Draw a line Down
+       LDI Cmd
+       PLO RCmd
+       LDI $2
+       STR RCmd
+       OUT GPort
+       OUT GPort
+       LDN RCmd
+       SEX RDel
+       ADD
+       SEX RCmd
+       STR RCmd
+       OUT GPort
 
-       ; Draw a Horizontal Segment Left
-       LDI Cmd   ; Load address of Cmd
-       PLO RCmd  ; Reset RCmd to point at Cmd
-       LDI $2    ; Draw command
-       STR RCmd  ; Store in RCmd for output via X
-       OUT GPort ; Output Command and Advance X (RCmd)
-       LDN RCmd  ; Load x value
-       SEX RDel  ; Set X to point to Delta
-       SM        ; Change x by current Delta
-       SEX RCmd  ; Set X back to Cmd buffer
-       STR RCmd  ; Store x in RCmd for output via X
-       OUT GPort ; Output x and Advance X (RCmd)
-       OUT GPort ; Output y (same as last y) and Advance X (RCmd)
+; Draw a line Left
+       LDI Cmd
+       PLO RCmd
+       LDI $2
+       STR RCmd
+       OUT GPort
+       LDN RCmd
+       SEX RDel
+       SM
+       SEX RCmd
+       STR RCmd
+       OUT GPort
+       OUT GPort
 
-       ; Increase the step size
-       SEX RDel  ; Set X to be the Delta Register
-       LDI Step  ; Load the step size
-       ADD       ; Add Step to Delta
-       BDF Done  ; If it causes an overflow, then we're done
-       STR RDel  ; Store the new step in Delta
-       SEX RCmd  ; Set X back to Rcmd
+; Increase step size
+       SEX RDel
+       LDI Step
+       ADD
+       BDF Done
+       STR RDel
+       SEX RCmd
 
-       BR Draw   ; Branch back to continue drawing
+       BR Draw
 
 Done   IDL
 
-Delta  Byte Step   ; The current delta (grows further from center)
-Cmd    Byte 0      ; First command byte for sending graphics commands
-Data   Byte 1,2,3  ; Data bytes for sending graphics commands
+Delta  Byte Step
+Cmd    Byte 0
+Data   Byte 1,2,3
 
 		   END
 </pre></td>
@@ -2824,16 +2824,15 @@ Data   Byte 1,2,3  ; Data bytes for sending graphics commands
 
 			<tr><td valign="top">Bouncing Lines</td><td valign="top">
 			  Too large to show code<br/>
-			</td><td valign="top">Intel Hex Format:<br/>
-			                      &nbsp; :20000000F800B8B9BABBBCBDBEBFF896ACF88CADF882AEF8A2A8F8C3A7F880ABF881AFEB9F<br/>
-                            &nbsp; :20002000F8045B662BF8005B662B662B662B7BEBD7EBF8015B662BF878AA0A5B662BF87944<br/>
-                            &nbsp; :20004000AA0A5B662BF8025B662BF87AAA0A5B662BF87BAA0A5B662B7AF878AAF87CA9D86C<br/>
-                            &nbsp; :20006000F879AAF87DA9D8F87AAAF87EA9D8F87BAAF87FA9D8302E0032FA0A00FBFA0608B0<br/>
-                            &nbsp; :2000800000000000000000000000000000336699CCFFFFFFFFFFFFFFFFFFFFFFCC9966336F<br/>
-                            &nbsp; :2000A000EED0097E33B40AE9F45A3BB2F75AF800F75930A10AE9F45A33C0F75AF800F759AF<br/>
-                            &nbsp; :2000C00030A1D0F803EF5F662FEC8CFFA03AD2F882AC66ED8DFFA03ADCF882AD66EE8EFFBB<br/>
-                            &nbsp; :0900E000A03AE6F882AE6630C2D7<br/>
-                            &nbsp; :0000E90116</td></tr>
+			</td><td valign="top">:20000000F800B8B9BABBBCBDBEBFF896ACF88CADF882AEF8A2A8F8C3A7F880ABF881AFEB9F<br/>
+                            :20002000F8045B662BF8005B662B662B662B7BEBD7EBF8015B662BF878AA0A5B662BF87944<br/>
+                            :20004000AA0A5B662BF8025B662BF87AAA0A5B662BF87BAA0A5B662B7AF878AAF87CA9D86C<br/>
+                            :20006000F879AAF87DA9D8F87AAAF87EA9D8F87BAAF87FA9D8302E0032FA0A00FBFA0608B0<br/>
+                            :2000800000000000000000000000000000336699CCFFFFFFFFFFFFFFFFFFFFFFCC9966336F<br/>
+                            :2000A000EED0097E33B40AE9F45A3BB2F75AF800F75930A10AE9F45A33C0F75AF800F759AF<br/>
+                            :2000C00030A1D0F803EF5F662FEC8CFFA03AD2F882AC66ED8DFFA03ADCF882AD66EE8EFFBB<br/>
+                            :0900E000A03AE6F882AE6630C2D7<br/>
+                            :0000E90116</td></tr>
 
 			<tr><td valign="top">Register Gymnastics (self-modifying code)</td><td valign="top">
 				Too large to show code<br/>
