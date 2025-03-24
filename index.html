@@ -734,9 +734,14 @@ function clear_graphics() {
 	show_graphics();
 }
 
+function console_log ( s ) {
+  // console.log ( s );
+}
+
+
 graphics_index = 0;
 function show_graphics() {
-  // console.log ( "top of show_graphics" );
+  // console_log ( "top of show_graphics" );
 	da = document.getElementById('drawing_area');
   ctxt = da.getContext('2d');
 
@@ -758,43 +763,51 @@ function show_graphics() {
   // 4,r,g,b = Erase Screen to r,g,b
 
   ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
-  i = 0;
-  while (i < (out6.length-4)) {  // This should be a better check!!!!!!!!!!!!
-    // console.log ( "i = " + i + ", out6[i] = " + out6[i] );
-    // for (i=0; i<out6.length; i++) {
-    if (out6[i] == 1)        { // Move command x y
-      if (i+2 < out6.length) {
+  graphics_byte_index = 0;
+  while (graphics_byte_index < (out6.length-4)) {  // Why (out6.length-4)?? This should be a better check!!!!!!!!!!!!
+    console_log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
+    for (j=0; j<out6.length; j++) {
+      console_log ( "  out6["+j+"] = " + out6[j] );
+    }
+    // console_log ( "graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
+    // for (graphics_byte_index=0; graphics_byte_index<out6.length; graphics_byte_index++) {
+    if (out6[graphics_byte_index] == 1)        { // Move command x y
+      if (graphics_byte_index+2 < out6.length) {
         ctxt.beginPath();
-        x = out6[i+1];
-        y = out6[i+2];
+        x = out6[graphics_byte_index+1];
+        y = out6[graphics_byte_index+2];
+        console_log ( "  Move to " + x + "," + y );
         ctxt.moveTo ( x, y );
-        i = i + 3;
+        graphics_byte_index = graphics_byte_index + 3;
       }
-    } else if (out6[i] == 2) { // Draw command x y
-      if (i+2 < out6.length) {
-        x = out6[i+1];
-        y = out6[i+2];
+    } else if (out6[graphics_byte_index] == 2) { // Draw command x y
+      if (graphics_byte_index+2 < out6.length) {
+        x = out6[graphics_byte_index+1];
+        y = out6[graphics_byte_index+2];
+        console_log ( "  Draw to " + x + "," + y );
         ctxt.lineTo ( x, y );
-        i = i + 3;
+        graphics_byte_index = graphics_byte_index + 3;
         ctxt.stroke();
       }
-    } else if (out6[i] == 3) { // Color command r g b
-      if (i+3 < out6.length) {
-        ctxt.strokeStyle = "#" + hex2(out6[i+1]) + hex2(out6[i+2]) + hex2(out6[i+3]);
-        i = i + 4;
+    } else if (out6[graphics_byte_index] == 3) { // Color command r g b
+      if (graphics_byte_index+3 < out6.length) {
+        console_log ( "  Set Color to " + out6[graphics_byte_index+1] + "," + out6[graphics_byte_index+2] + "," + out6[graphics_byte_index+3] );
+        ctxt.strokeStyle = "#" + hex2(out6[graphics_byte_index+1]) + hex2(out6[graphics_byte_index+2]) + hex2(out6[graphics_byte_index+3]);
+        graphics_byte_index = graphics_byte_index + 4;
       }
-    } else if (out6[i] == 4) { // Clear command r g b
-      if (i+3 < out6.length) {
+    } else if (out6[graphics_byte_index] == 4) { // Clear command r g b
+      if (graphics_byte_index+3 < out6.length) {
         // Clear the background
-        ctxt.fillStyle = "#" + hex2(out6[i+1]) + hex2(out6[i+2]) + hex2(out6[i+3]);
+        console_log ( "  Clear to " + out6[graphics_byte_index+1] + "," + out6[graphics_byte_index+2] + "," + out6[graphics_byte_index+3] );
+        ctxt.fillStyle = "#" + hex2(out6[graphics_byte_index+1]) + hex2(out6[graphics_byte_index+2]) + hex2(out6[graphics_byte_index+3]);
         ctxt.fillRect(0, 0, da.width, da.height);
-        i = i + 4;
+        graphics_byte_index = graphics_byte_index + 4;
       }
     } else {
-      i = i + 1;
+      graphics_byte_index = graphics_byte_index + 1;
     }
 	}
-  // console.log ( "bot of show_graphics" );
+  // console_log ( "bot of show_graphics" );
 
 }
 
@@ -858,6 +871,12 @@ function mainLoop()
 
 running = false;
 run_counter = 1;
+function full_stop() {
+	running = false;
+  document.getElementById('RunStop').innerHTML = "Run/<u>Stop</u>";
+	document.getElementById('RunStop').setAttribute("style", "");
+	stop();
+}
 function run_stop() {
 	running = !running;
 	if (running) {
@@ -961,6 +980,7 @@ function exec_next() {
 	if (op_code == 0x00) { // IDL
 		// Idle instruction - Do nothing, just wait for an interrupt
 		is_idle = true;
+		full_stop();
 	} else if (I == 0x0) { // LDN - Load via N
 		rd = mem[rr[N]];
 		rr[rp] += 1;
