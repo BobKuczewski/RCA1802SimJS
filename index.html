@@ -74,13 +74,13 @@
 <script>
 
 function replaceAll ( s, t, r ) {
-	last_s = s;
+	new_s = (s + " ").trim();
 	do {
+		last_s = (new_s + " ").trim();
 	  new_s = last_s.replace(t,r);
-	} while ( new_s != last_s );
+	} while ( ! (new_s === last_s) );
 	return ( new_s );
 }
-
 
 rd = 0; rdf = 1; rb = 0; rp = 0; rx = 0;
 rn = 0; ri = 0; rt = 0; ra = 0; rie = 1; rq = 0;
