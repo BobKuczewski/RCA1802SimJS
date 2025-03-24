@@ -501,45 +501,51 @@ function load_prog_with_addresses(hex_code) {
 	next_mem_loc = 0;
 	for (l=0; l<lines.length; l++) {
 		line = lines[l].replace(/\s+/g,''); // Remove all white space
-		if (line.indexOf(":") >= 0) {
-			// This line has either an address or is in Intel Hex format
-			if (line[0] == ":") {
-				// This is Intel Hex format which starts with a ":"
-				// ":"    = First byte of line is ":"
-				// "BC"   = Byte count of DATA consisting of two hex digits (max bytes/line = 255)
-				// "ADDB" = Four bytes (4 hex digits = 16 bits) of address
-				// "RT"   = Two bytes (2 hex digits = 8 bits) of Record Type (00=Data, 01=EOF, 02=ExtSegAdd, 03=StrtSegAdd, 04=ExtLinAdd, 05=StrtLinAdd,
-				// "DATA" = This is the actual data of length "ByteCount"
-				// "CS"   = Two bytes (2 hex digits = 8 bits) of checksum 2's complement of sum of bytes
-				bcnt = line.substr(1,2);
-				ad = line.substr(3,4);
-				rectyp = line.substr(7,2);
-				bytecount = parseInt ( bcnt, 16 );
-				addr = parseInt ( ad, 16 );
-				rtyp = parseInt ( rectyp, 16 );
-				dt = line.substr(9,bytecount*2);
-				cs = line.substr(9+(bytecount*2),2);
-				// console.log ( "Line: " + line );
-				// console.log ( "IntHex: " + bcnt + "," + ad + "," + rectyp + "," + dt + "," + cs );
-				next_mem_loc = addr;
-				if (rtyp == 0) {
-					line = dt;
-				} else {
-					line = "";
-				}
-			} else {
-				// This line just has an address, so update the next mem location
-				addr = parseInt ( line.substr(0,line.indexOf(":")).trim(), 16 );
-				next_mem_loc = addr;
-				// Remove the address to allow subsequent code to continue parsing
-				line = line.substr(line.indexOf(":")+1);
-			}
-		}
-		// The line does not have an address (or it was removed)
-		for (i=0; i<(line.length/2); i++) {
-			mem[next_mem_loc] = parseInt(line.substr(i*2,2),16);
-			next_mem_loc += 1;
-		}
+	  if (line.indexOf(";") >= 0) {
+	    // Remove the comment
+	    line = line.substr(0,line.indexOf(";"));
+	  }
+	  if (line.length > 0) {
+		  if (line.indexOf(":") >= 0) {
+			  // This line has either an address or is in Intel Hex format
+			  if (line[0] == ":") {
+				  // This is Intel Hex format which starts with a ":"
+				  // ":"    = First byte of line is ":"
+				  // "BC"   = Byte count of DATA consisting of two hex digits (max bytes/line = 255)
+				  // "ADDB" = Four bytes (4 hex digits = 16 bits) of address
+				  // "RT"   = Two bytes (2 hex digits = 8 bits) of Record Type (00=Data, 01=EOF, 02=ExtSegAdd, 03=StrtSegAdd, 04=ExtLinAdd, 05=StrtLinAdd,
+				  // "DATA" = This is the actual data of length "ByteCount"
+				  // "CS"   = Two bytes (2 hex digits = 8 bits) of checksum 2's complement of sum of bytes
+				  bcnt = line.substr(1,2);
+				  ad = line.substr(3,4);
+				  rectyp = line.substr(7,2);
+				  bytecount = parseInt ( bcnt, 16 );
+				  addr = parseInt ( ad, 16 );
+				  rtyp = parseInt ( rectyp, 16 );
+				  dt = line.substr(9,bytecount*2);
+				  cs = line.substr(9+(bytecount*2),2);
+				  // console.log ( "Line: " + line );
+				  // console.log ( "IntHex: " + bcnt + "," + ad + "," + rectyp + "," + dt + "," + cs );
+				  next_mem_loc = addr;
+				  if (rtyp == 0) {
+					  line = dt;
+				  } else {
+					  line = "";
+				  }
+			  } else {
+				  // This line just has an address, so update the next mem location
+				  addr = parseInt ( line.substr(0,line.indexOf(":")).trim(), 16 );
+				  next_mem_loc = addr;
+				  // Remove the address to allow subsequent code to continue parsing
+				  line = line.substr(line.indexOf(":")+1);
+			  }
+		  }
+		  // The line does not have an address (or it was removed)
+		  for (i=0; i<(line.length/2); i++) {
+			  mem[next_mem_loc] = parseInt(line.substr(i*2,2),16);
+			  next_mem_loc += 1;
+		  }
+	  }
 	}
 }
 
