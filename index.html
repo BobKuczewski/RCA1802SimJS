@@ -272,6 +272,8 @@ function show_mem() {
 	}
 	for (i=0; i<mem_num_shown; i++) {
 		addr = mem_first_shown+i;
+		if (addr < 0) addr = 0;
+		if (addr > 0xffff) addr = 0xffff;
 		data = mem[addr];
 		addrs = addr.toString(16).toUpperCase();
 		datas = data.toString(16).toUpperCase();
@@ -2839,6 +2841,79 @@ Data   Byte 1,2,3
                             :2000C00030A1D0F803EF5F662FEC8CFFA03AD2F882AC66ED8DFFA03ADCF882AD66EE8EFFBB<br/>
                             :0900E000A03AE6F882AE6630C2D7<br/>
                             :0000E90116</td></tr>
+
+
+			<tr><td valign="top">Test Address Lines</td><td valign="top"><pre>
+; Test all address lines
+; Set Q and double address
+; Reset Q, double address
+
+0000:   ; Code at 0000
+7b      ; SEQ
+c0 0004 ; LBR 0004
+
+0004:   ; Code at 0004
+7a      ; REQ
+c0 0008 ; LBR 0008
+
+0008:   ; Code at 0008
+7b      ; SEQ
+c0 0010 ; LBR 0010
+
+0010:   ; Code at 0010
+7a      ; REQ
+c0 0020 ; LBR 0020
+
+0020:   ; Code at 0020
+7b      ; SEQ
+c0 0040 ; LBR 0040
+
+0040:   ; Code at 0040
+7a      ; REQ
+c0 0080 ; LBR 0080
+
+0080:   ; Code at 0080
+7b      ; SEQ
+c0 0100 ; LBR 0100
+
+0100:   ; Code at 0100
+7a      ; REQ
+c0 0200 ; LBR 0200
+
+0200:   ; Code at 0200
+7b      ; SEQ
+c0 0400 ; LBR 0400
+
+0400:   ; Code at 0400
+7a      ; REQ
+c0 0800 ; LBR 0800
+
+0800:   ; Code at 0800
+7b      ; SEQ
+c0 1000 ; LBR 1000
+
+1000:   ; Code at 1000
+7a      ; REQ
+c0 2000 ; LBR 2000
+
+2000:   ; Code at 2000
+7b      ; SEQ
+c0 4000 ; LBR 4000
+
+4000:   ; Code at 4000
+7a      ; REQ
+c0 8000 ; LBR 8000
+
+8000:   ; Code at 8000
+7b      ; SEQ
+c0 fffc ; LBR fffc
+
+fffc:   ; Code at fffc
+7a      ; REQ
+c0 0000 ; LBR 0000
+</pre></td>
+      <td valign="top"></td></tr>
+
 
 			<tr><td valign="top">Register Gymnastics (self-modifying code)</td><td valign="top">
 				Too large to show code<br/>
