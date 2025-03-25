@@ -526,8 +526,8 @@ function load_prog_with_addresses(hex_code) {
 				  rtyp = parseInt ( rectyp, 16 );
 				  dt = line.substr(9,bytecount*2);
 				  cs = line.substr(9+(bytecount*2),2);
-				  // console.log ( "Line: " + line );
-				  // console.log ( "IntHex: " + bcnt + "," + ad + "," + rectyp + "," + dt + "," + cs );
+				  // console_log ( "Line: " + line );
+				  // console_log ( "IntHex: " + bcnt + "," + ad + "," + rectyp + "," + dt + "," + cs );
 				  next_mem_loc = addr;
 				  if (rtyp == 0) {
 					  line = dt;
@@ -773,16 +773,21 @@ function show_graphics() {
   ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
   graphics_byte_index = 0;  // Indexes through the bytes in the buffer
   command_byte_index = 0;  // Points to the latest command
+  lastx = 256/2;
+  lasty = 256/2;
+  in_path = false;
   while (graphics_byte_index < out6.length) {
-    console.log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
+    console_log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
     console_log ( "Top: command_byte_index = " + command_byte_index + " out6[command_byte_index] = " + out6[command_byte_index] );
     if (out6[command_byte_index] == 1)        { // Move command x y
       if (command_byte_index+2 < out6.length) {
-        ctxt.beginPath();
-        x = out6[command_byte_index+1];
-        y = out6[command_byte_index+2];
-        console_log ( "  Move to " + x + "," + y );
-        ctxt.moveTo ( x, y );
+        if (in_path) {
+          // Finish the old path
+          ctxt.stroke();
+          in_path = false;
+        }
+        lastx = out6[command_byte_index+1];
+        lasty = out6[command_byte_index+2];
         graphics_byte_index = graphics_byte_index + 3;
         command_byte_index = graphics_byte_index;
       } else {
@@ -790,10 +795,17 @@ function show_graphics() {
       }
     } else if (out6[command_byte_index] == 2) { // Draw command x y
       if (command_byte_index+2 < out6.length) {
-        x = out6[command_byte_index+1];
-        y = out6[command_byte_index+2];
-        console_log ( "  Draw to " + x + "," + y );
-        ctxt.lineTo ( x, y );
+        if (!in_path) {
+          // Start a new path
+          ctxt.beginPath();
+          ctxt.moveTo ( lastx, lasty );
+          console_log ( "  Move to " + lastx + "," + lasty );
+          in_path = true;
+        }
+        lastx = out6[command_byte_index+1];
+        lasty = out6[command_byte_index+2];
+        console_log ( "  Draw to " + lastx + "," + lasty );
+        ctxt.lineTo ( lastx, lasty );
         ctxt.stroke();
         graphics_byte_index = graphics_byte_index + 3;
         command_byte_index = graphics_byte_index;
@@ -803,7 +815,13 @@ function show_graphics() {
     } else if (out6[command_byte_index] == 3) { // Color command r g b
       if (command_byte_index+3 < out6.length) {
         console_log ( "  Set Color to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
+        // Finish the previous path
+        ctxt.stroke();
+        // Set the new stroke style
         ctxt.strokeStyle = "#" + hex2(out6[command_byte_index+1]) + hex2(out6[command_byte_index+2]) + hex2(out6[command_byte_index+3]);
+        // Begin a new path from the last point
+        ctxt.beginPath();
+        ctxt.moveTo ( lastx, lasty );
         graphics_byte_index = graphics_byte_index + 4;
         command_byte_index = graphics_byte_index;
       } else {
@@ -816,6 +834,7 @@ function show_graphics() {
         ctxt.fillRect(0, 0, da.width, da.height);
         graphics_byte_index = graphics_byte_index + 4;
         command_byte_index = command_byte_index + 4;
+        in_path = false;
       } else {
         graphics_byte_index = graphics_byte_index + 1;
       }
@@ -823,8 +842,12 @@ function show_graphics() {
       graphics_byte_index = graphics_byte_index + 1;
     }
 	}
+  if (in_path) {
+    // Finish any remaining path
+    ctxt.stroke();
+    in_path = false;
+  }
   // console_log ( "bot of show_graphics" );
-
 }
 
 function show_out_LED() {
@@ -846,7 +869,7 @@ function get_in() {
 	for (i=0; i<(text.length/2); i++) {
 		in4.push ( parseInt(text.substr(i*2,2),16) );
 	}
-	// console.log ( "get_in got: " + in4 );
+	// console_log ( "get_in got: " + in4 );
 }
 
 consoleDebug = false;
@@ -904,16 +927,16 @@ function run_stop() {
 		document.getElementById('RunStop').setAttribute("style", "");
 		stop();
 		/*
-		console.log ( "Opcodes Used:" );
+		console_log ( "Opcodes Used:" );
 		for (i=0; i<16; i++) {
 			s = " " + hex2(i) + ":  ";
 			for (j=0; j<16; j++) {
 				s += " " + hex1(used_ops[(16*i)+j]);
 			}
-			console.log ( s + "\n" );
+			console_log ( s + "\n" );
 		}
 		*/
-		// console.log ( "Used:\n" + used_ops );
+		// console_log ( "Used:\n" + used_ops );
 	}
 }
 function run() {
@@ -1626,7 +1649,7 @@ function compare_to_donnelly_format() {
 			all_match = false;
 		}
 	}
-	console.log ( "Num memory mismatches = " + num_mismatch );
+	console_log ( "Num memory mismatches = " + num_mismatch );
 
 	// Next parse the register data
 	blocks = ref_state_text.split("Halt Address");
@@ -1636,21 +1659,21 @@ function compare_to_donnelly_format() {
 	if (assign_blocks[0].startsWith("Halt Address")) {
 		ref_val = assign_blocks[0].split('=')[1].trim();
 		if ( ref_val.startsWith(hex4(rr[rp])) ) {
-			console.log ( "Halt matches" );
+			console_log ( "Halt matches" );
 		} else {
-			console.log ( "Halt fails " + ref_val + " =/= " + hex4(rr[rp]) );
+			console_log ( "Halt fails " + ref_val + " =/= " + hex4(rr[rp]) );
 			all_match = false;
 		}
 	} else {
-		console.log ( "ERROR finding Halt Address" );
+		console_log ( "ERROR finding Halt Address" );
 	}
 
 	if (assign_blocks[1].startsWith("D")) {
 		ref_val = assign_blocks[1].split('=')[1].trim();
 		if ( ref_val.startsWith(hex2(rd)) ) {
-			console.log ( "D matches" );
+			console_log ( "D matches" );
 		} else {
-			console.log ( "D fails" );
+			console_log ( "D fails" );
 			all_match = false;
 		}
 	} else {
@@ -1660,9 +1683,9 @@ function compare_to_donnelly_format() {
 	if (assign_blocks[2].startsWith("DF/Carry")) {
 		ref_val = assign_blocks[2].split('=')[1].trim();
 		if ( ref_val.startsWith(hex1(rdf)) ) {
-			console.log ( "DF/Carry matches" );
+			console_log ( "DF/Carry matches" );
 		} else {
-			console.log ( "DF/Carry fails" );
+			console_log ( "DF/Carry fails" );
 			all_match = false;
 		}
 	} else {
@@ -1672,16 +1695,16 @@ function compare_to_donnelly_format() {
 	if (assign_blocks[3].startsWith("RP")) {
 		ref_val = assign_blocks[3].split('=')[1].trim()[1];
 		if ( ref_val.startsWith(hex1(rp)) ) {
-			console.log ( "P matches" );
+			console_log ( "P matches" );
 		} else {
-			console.log ( "P fails" );
+			console_log ( "P fails" );
 			all_match = false;
 		}
 		ref_val = assign_blocks[3].split('=')[2].trim();
 		if ( ref_val.startsWith(hex4(rr[rp])) ) {
-			console.log ( "RP matches" );
+			console_log ( "RP matches" );
 		} else {
-			console.log ( "RP fails" );
+			console_log ( "RP fails" );
 			all_match = false;
 		}
 	} else {
@@ -1691,16 +1714,16 @@ function compare_to_donnelly_format() {
 	if (assign_blocks[4].startsWith("RX")) {
 		ref_val = assign_blocks[4].split('=')[1].trim()[1];
 		if ( ref_val.startsWith(hex1(rx)) ) {
-			console.log ( "X matches" );
+			console_log ( "X matches" );
 		} else {
-			console.log ( "X fails" );
+			console_log ( "X fails" );
 			all_match = false;
 		}
 		ref_val = assign_blocks[4].split('=')[2].trim();
 		if ( ref_val.startsWith(hex4(rr[rx])) ) {
-			console.log ( "RX matches" );
+			console_log ( "RX matches" );
 		} else {
-			console.log ( "RX fails" );
+			console_log ( "RX fails" );
 			all_match = false;
 		}
 	} else {
@@ -1710,9 +1733,9 @@ function compare_to_donnelly_format() {
 	if (assign_blocks[5].startsWith("Q Flag")) {
 		ref_val = assign_blocks[5].split('=')[1].trim();
 		if ( ref_val.startsWith(hex1(rq)) ) {
-			console.log ( "Q matches" );
+			console_log ( "Q matches" );
 		} else {
-			console.log ( "Q fails" );
+			console_log ( "Q fails" );
 			all_match = false;
 		}
 	} else {
@@ -1723,10 +1746,10 @@ function compare_to_donnelly_format() {
 		if (assign_blocks[6+ref_reg].startsWith("R" + hex1(ref_reg))) {
 			ref_val = assign_blocks[6+ref_reg].split('=')[1].trim();
 			if ( ref_val.startsWith(hex4(rr[ref_reg])) ) {
-				console.log ( "R" + hex1(ref_reg) + " matches" );
+				console_log ( "R" + hex1(ref_reg) + " matches" );
 			} else {
-				// console.log ( "R" + hex1(ref_reg) + " fails " );
-				console.log ( "R" + hex1(ref_reg) + " fails " + ref_val.substr(0,4) + " =/= " + hex4(rr[ref_reg]) );
+				// console_log ( "R" + hex1(ref_reg) + " fails " );
+				console_log ( "R" + hex1(ref_reg) + " fails " + ref_val.substr(0,4) + " =/= " + hex4(rr[ref_reg]) );
 				all_match = false;
 			}
 		} else {
@@ -1740,9 +1763,9 @@ function compare_to_donnelly_format() {
 	}
 
 	if (all_match) {
-		console.log ( "All Match!!" );
+		console_log ( "All Match!!" );
 	} else {
-		console.log ( "Failures Found." );
+		console_log ( "Failures Found." );
 	}
 
 }
@@ -2672,6 +2695,65 @@ EDATA  END
 			                 :08002000B00250500300000083<br/>
 			                 :00002801D7</td></tr>
 
+
+
+
+			<tr><td valign="top">Draw Colored Square</td><td valign="top"><pre>
+GPort EQU 6
+
+START ORG $00
+      LDI 00    ; Load 0
+      PHI $0F   ; Zero F.1
+      PHI $0E   ; Zero E.1
+      LDI DATA  ; Commands
+      PLO $0F   ; F = Cmds
+      SEX $0F   ; X is F
+      LDI EDATA-DATA ; Cmd Size
+      PLO $0E   ; E counts down
+SEND  OUT GPort ; Output Cmd
+      DEC $0E   ; Count Down
+      GLO $0E   ; Check Count
+      BNZ SEND  ; Send if more
+      IDL       ; Done!!
+
+; Graphics commands to send
+DATA  BYTE $01  ; Move to ...
+      BYTE $50  ; x: 50x
+      BYTE $50  ; y: 50x
+      BYTE $03  ; Set Red
+      BYTE $FF  ; Red: FF
+      BYTE $00  ; Green: 00
+      BYTE $00  ; Blue: 00
+      BYTE $02  ; Draw to ...
+      BYTE $B0  ; x: B0x
+      BYTE $50  ; y: 50x
+      BYTE $03  ; Set Green
+      BYTE $00  ; Red: 00
+      BYTE $FF  ; Green: FF
+      BYTE $00  ; Blue: 00
+      BYTE $02  ; Draw to ...
+      BYTE $B0  ; x: B0x
+      BYTE $B0  ; y: B0x
+      BYTE $03  ; Set Blue
+      BYTE $00  ; Red: 00
+      BYTE $00  ; Green: 00
+      BYTE $FF  ; Blue: FF
+      BYTE $02  ; Draw to ...
+      BYTE $50  ; x: 50x
+      BYTE $B0  ; y: B0x
+      BYTE $03  ; Set Yellow
+      BYTE $FF  ; Red: FF
+      BYTE $FF  ; Green: FF
+      BYTE $00  ; Blue: 00
+      BYTE $02  ; Draw to ...
+      BYTE $50  ; x: 50x
+      BYTE $50  ; y: B0x
+EDATA           ; End of Data
+		  END
+</pre></td>
+      <td valign="top">:20000000F800BFBEF811AFEFF81FAE662E8E3A0B0001505003FF000002B0500300FF0002EF<br/>
+:10002000B0B0030000FF0250B003FFFF00025050C9<br/>
+:00003001CF</td></tr>
 
 
 			<tr><td valign="top">Draw Square Spiral</td><td valign="top"><pre>
