@@ -588,7 +588,7 @@ function update_enable_disable() {
 	}
 }
 
-showing_graphics = false;
+showing_graphics = true;
 
 function graphics_enable_disable() {
 	showing_graphics = !showing_graphics;
@@ -739,6 +739,34 @@ function show_out() {
 function clear_graphics() {
 	out6 = [];
 	document.getElementById('GraphicsText').value = "";
+	// Testing data (used to work on graphics without needing output from the 1802 simulation)
+	// See graphics command comment below
+	// Testing odd number of bits in raster: 15 bits fitting into 2 bytes
+	// Test Case:
+	//   0 01110
+	//   1 00110
+	//   2 00010
+  // Bit stream: 01110 00110 00010 = Byte stream: 01110001 1000010x = 0x71, 0x84
+  // x,y,nr,nc,sz,bytes
+	out6 = [ 4,0xff,0xcc,0xcc,
+	         3,0xff,0x00,0x00,
+	         5,10,10,100,20,
+	         3,0,0,0xff,
+	         1,10,30,
+	         2,100,100,
+	         3,0x40,0x40,0x10,
+	         6,0,0,2,2,7,0x90,
+	         6,242,242,2,2,7,0x90,
+	         6,242,0,2,2,7,0x60,
+	         6,0,242,2,2,7,0x60,
+	         3,0,0,0xff,
+	         6,150,150,3,5,7,0x71,0x84,
+	         3,0,0x88,0,
+	         6,0,150,3,5,7,0xe3,0x08,
+	         3,0x88,0,0x88,
+	         6,21,101,3,5,14,0x71,0x84];
+
+	document.getElementById('GraphicsText').value = "04ffcccc";
 	show_graphics();
 }
 
@@ -749,9 +777,13 @@ function console_log ( s ) {
 
 graphics_index = 0;
 function show_graphics() {
-  // console_log ( "top of show_graphics" );
+  console.log ( "=========== top of show_graphics ============" );
 	da = document.getElementById('drawing_area');
   ctxt = da.getContext('2d');
+
+  // Try to make lines brighter
+  ctxt.lineWidth = 2;
+  ctxt.imageSmoothingEnabled = false;
 
   // Show the graphics data (for now)
 	text = ""
@@ -769,18 +801,22 @@ function show_graphics() {
   // 2,x,y = Draw to x,y
   // 3,r,g,b = Set Color to r,g,b
   // 4,r,g,b = Erase Screen to r,g,b
+  // 5,x1,y1,x2,y2 = Fill Rect from x1,y1 to x2,y2
+  // 6,x,y,nr,nc,s,bytes... = Draw raster at (x,y) of (nr x nc) at scale s with bytes
 
   ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
-  graphics_byte_index = 0;  // Indexes through the bytes in the buffer
+  graphics_byte_index = 0;  // Indexes through the bytes in the out6 buffer
   command_byte_index = 0;  // Points to the latest command
   lastx = 256/2;
   lasty = 256/2;
   in_path = false;
   while (graphics_byte_index < out6.length) {
-    console_log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
-    console_log ( "Top: command_byte_index = " + command_byte_index + " out6[command_byte_index] = " + out6[command_byte_index] );
+    console.log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
+    //console.log ( "Top: command_byte_index = " + command_byte_index + " out6[command_byte_index] = " + out6[command_byte_index] );
     if (out6[command_byte_index] == 1)        { // Move command x y
       if (command_byte_index+2 < out6.length) {
+        // Sufficient data has been collected to draw this command
+		    console.log ( "  Got all the data for move command" );
         if (in_path) {
           // Finish the old path
           ctxt.stroke();
@@ -795,6 +831,8 @@ function show_graphics() {
       }
     } else if (out6[command_byte_index] == 2) { // Draw command x y
       if (command_byte_index+2 < out6.length) {
+        // Sufficient data has been collected to draw this command
+		    console.log ( "  Got all the data for draw command" );
         if (!in_path) {
           // Start a new path
           ctxt.beginPath();
@@ -814,11 +852,14 @@ function show_graphics() {
       }
     } else if (out6[command_byte_index] == 3) { // Color command r g b
       if (command_byte_index+3 < out6.length) {
-        console_log ( "  Set Color to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
+        // Sufficient data has been collected to draw this command
+        console.log ( "  Set Color to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
         // Finish the previous path
         ctxt.stroke();
         // Set the new stroke style
         ctxt.strokeStyle = "#" + hex2(out6[command_byte_index+1]) + hex2(out6[command_byte_index+2]) + hex2(out6[command_byte_index+3]);
+        // Set the new stroke style
+        ctxt.fillStyle   = "#" + hex2(out6[command_byte_index+1]) + hex2(out6[command_byte_index+2]) + hex2(out6[command_byte_index+3]);
         // Begin a new path from the last point
         ctxt.beginPath();
         ctxt.moveTo ( lastx, lasty );
@@ -829,7 +870,8 @@ function show_graphics() {
       }
     } else if (out6[command_byte_index] == 4) { // Clear command r g b
       if (command_byte_index+3 < out6.length) {
-        console_log ( "  Clear to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
+        // Sufficient data has been collected to draw this command
+        console.log ( "  Clear to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
         ctxt.fillStyle = "#" + hex2(out6[command_byte_index+1]) + hex2(out6[command_byte_index+2]) + hex2(out6[command_byte_index+3]);
         ctxt.fillRect(0, 0, da.width, da.height);
         graphics_byte_index = graphics_byte_index + 4;
@@ -837,6 +879,81 @@ function show_graphics() {
         in_path = false;
       } else {
         graphics_byte_index = graphics_byte_index + 1;
+      }
+    } else if (out6[command_byte_index] == 5) { // Fill Rect x1,y1 to x2,y2
+      if (command_byte_index+4 < out6.length) {
+        // Sufficient data has been collected to draw this command
+		    console.log ( "  Got all the data for Fill Rect command" );
+        if (in_path) {
+          // Finish the old path
+          ctxt.stroke();
+          in_path = false;
+        }
+        x = out6[command_byte_index+1];
+        y = out6[command_byte_index+2];
+        w = out6[command_byte_index+3];
+        h = out6[command_byte_index+4];
+        console.log ( "  Rectangle at " + x + "," + y + " size " + w + "," + h );
+				ctxt.beginPath();
+        ctxt.rect ( x, y, w, h );
+        ctxt.fill();
+        ctxt.stroke();
+        graphics_byte_index = graphics_byte_index + 5;
+        command_byte_index = graphics_byte_index;
+      } else {
+        graphics_byte_index = graphics_byte_index + 1;
+      }
+    } else if (out6[command_byte_index] == 6) { // 6,x,y,nr,nc,s,bytes... = Draw raster at (x,y) of (nr x nc) at scale s with bytes
+      if (command_byte_index+5 < out6.length) {
+        // Sufficient data has been collected to determine the total amount needed
+        x  = out6[command_byte_index+1];
+        y  = out6[command_byte_index+2];
+        nr = out6[command_byte_index+3];
+        nc = out6[command_byte_index+4];
+        sz = out6[command_byte_index+5];
+        expected_raster_bytes = Math.floor ( ((nr * nc)+7) / 8 );
+        console.log ( "  Got a Raster Command with x=" + x +
+                                              ", y=" + y +
+                                              ", nr=" + nr +
+                                              ", nc=", + nc +
+                                              ", s=" + sz +
+                                              ", expecting=" + expected_raster_bytes );
+	      if (command_byte_index+5+expected_raster_bytes < out6.length) {
+	        // Sufficient data has been collected to draw this command
+		      console.log ( "  Got all the data for Raster command" );
+	        next_byte_index = command_byte_index+5+1;
+	        for (i=0; i<expected_raster_bytes; i++) {
+	          console.log ( "  Byte " + i + " = " + out6[next_byte_index+i] );
+	        }
+          bit_mask = 0x80;
+	        for (row=0; row<nr; row++) {
+	          console.log ( "  On row " + row );
+	          st = "";
+	          for (col=0; col<nc; col++) {
+		          console.log ( "   On col " + col );
+	            bit = out6[next_byte_index] & bit_mask;
+	            if (bit != 0) {
+	              bit = 1;
+								console.log ( "    Rectangle at " + (x+(col*sz)) + "," + (y+(row*sz)) + " size " + sz + "," + sz );
+								//ctxt.beginPath();
+								ctxt.fillRect ( x+(col*sz), y+(row*sz), sz, sz );
+								//ctxt.fill();
+								//ctxt.stroke();
+						  }
+	            st = st + bit;
+	            bit_mask = bit_mask >> 1;
+	            if (bit_mask == 0) {
+	              next_byte_index += 1;
+	              bit_mask = 0x80;
+	            }
+	          }
+	          console.log ( "  row = " + st )
+	        }
+	      }
+        graphics_byte_index = graphics_byte_index + 6 + expected_raster_bytes;
+        command_byte_index = graphics_byte_index;
+		  } else {
+		    graphics_byte_index = graphics_byte_index + 1;
       }
     } else {
       graphics_byte_index = graphics_byte_index + 1;
@@ -2128,7 +2245,7 @@ FACE 0F 1802
 	<tr><td style="border: none;"><center>Log OpCodes:<br/><input type="text" id="dump_code" size="3"></center></td></tr>
 	<tr><td style="border: none;"><center>&nbsp;</center></td></tr>
 	<tr><td style="border: none;"><center><button type="button" onclick="update_enable_disable();" id="UpdateEnDis">Update <b><u>On</u></b>/Off</button>
-	                                 <br/><button type="button" onclick="graphics_enable_disable();" id="ShowGraphics">Graphics On/<b><u>Off</u></b></button></center></td></tr>
+	                                 <br/><button type="button" onclick="graphics_enable_disable();" id="ShowGraphics">Graphics <b><u>On</u></b>/Off</button></center></td></tr>
 
 </table></td>
 
@@ -2139,8 +2256,8 @@ FACE 0F 1802
 <canvas
   id="drawing_area"
   width="256" height="256"
-  style="margin:2px; padding:2px; border:2px solid #cccccc; display:none;"
->
+  style="margin:2px; padding:2px; border:2px solid #cccccc;"
+>  <!-- Use: style="margin:2px; padding:2px; border:2px solid #cccccc; display:none;" -->
   Your browser does not support the HTML5 canvas tag.
 </canvas>
 
