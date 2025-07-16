@@ -728,6 +728,7 @@ function clear_out() {
 }
 
 function show_out() {
+  // Called for every instruction
 	text = ""
 	for (i=0; i<out4.length; i++) {
 		text = text + hex2(out4[i]);
@@ -777,12 +778,13 @@ function show_graphics() {
   // 6,x,y,nr,nc,s,bytes... = Draw raster at (x,y) of (nr x nc) at scale s with bytes
 
   ctxt.strokeStyle = "#FFFFFF"; // Default Line Color
-  graphics_byte_index = 0;  // Indexes through the bytes in the out6 buffer
-  command_byte_index = 0;  // Points to the latest command
+  graphics_byte_index = 0;  // Indexes through the bytes in the out6 buffer controlling outer loop
+  command_byte_index = 0;   // Points to the latest graphics command found in the out6 buffer
   lastx = 256/2;
   lasty = 256/2;
   in_path = false;
   while (graphics_byte_index < out6.length) {
+    // Walk through the graphics buffer: there will always be at least one byte left at this point to check for a command
     console_log ( "Top: graphics_byte_index = " + graphics_byte_index + ", out6[graphics_byte_index] = " + out6[graphics_byte_index] );
     //console_log ( "Top: command_byte_index = " + command_byte_index + " out6[command_byte_index] = " + out6[command_byte_index] );
     if (out6[command_byte_index] == 1)        { // Move command x y
@@ -796,6 +798,7 @@ function show_graphics() {
         }
         lastx = out6[command_byte_index+1];
         lasty = out6[command_byte_index+2];
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 3;
         command_byte_index = graphics_byte_index;
       } else {
@@ -817,6 +820,7 @@ function show_graphics() {
         console_log ( "  Draw to " + lastx + "," + lasty );
         ctxt.lineTo ( lastx, lasty );
         ctxt.stroke();
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 3;
         command_byte_index = graphics_byte_index;
       } else {
@@ -835,6 +839,7 @@ function show_graphics() {
         // Begin a new path from the last point
         ctxt.beginPath();
         ctxt.moveTo ( lastx, lasty );
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 4;
         command_byte_index = graphics_byte_index;
       } else {
@@ -846,6 +851,7 @@ function show_graphics() {
         console_log ( "  Clear to " + out6[command_byte_index+1] + "," + out6[command_byte_index+2] + "," + out6[command_byte_index+3] );
         ctxt.fillStyle = "#" + hex2(out6[command_byte_index+1]) + hex2(out6[command_byte_index+2]) + hex2(out6[command_byte_index+3]);
         ctxt.fillRect(0, 0, da.width, da.height);
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 4;
         command_byte_index = command_byte_index + 4;
         in_path = false;
@@ -870,6 +876,7 @@ function show_graphics() {
         ctxt.rect ( x, y, w, h );
         ctxt.fill();
         ctxt.stroke();
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 5;
         command_byte_index = graphics_byte_index;
       } else {
@@ -891,7 +898,7 @@ function show_graphics() {
                                               ", s=" + sz +
                                               ", expecting=" + expected_raster_bytes );
 	      if (command_byte_index+5+expected_raster_bytes < out6.length) {
-	        // Sufficient data has been collected to draw this command
+	        // Sufficient data has been collected to draw this command in full
 		      console_log ( "  Got all the data for Raster command" );
 	        next_byte_index = command_byte_index+5+1;
 	        for (i=0; i<expected_raster_bytes; i++) {
@@ -921,7 +928,10 @@ function show_graphics() {
 	          }
 	          console_log ( "  row = " + st )
 	        }
+	      } else {
+	        // Attempt to draw what's come in so far
 	      }
+        // This command is finished, so jump past this command
         graphics_byte_index = graphics_byte_index + 6 + expected_raster_bytes;
         command_byte_index = graphics_byte_index;
 		  } else {
