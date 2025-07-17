@@ -665,7 +665,6 @@ function disable_pc_tracking() {
 }
 
 function set_mem_top() {
-	// <input type="text" id="mem_top_req" size="3">
 	mem_top_req_text = document.getElementById ("mem_top_req").value.trim();
 	mem_top_req = parseInt(mem_top_req_text,16);
 	if (mem_top_req < 0) mem_top_req = 0;
@@ -987,7 +986,10 @@ function mainLoop()
       mainLoop.nCounter = 0;
 
    if (!stopRunning) {
-	   exec_next();
+	   steps_per_clock = parseInt ( document.getElementById ("steps_per_clock").value.trim() );
+     for (nst=0; nst<steps_per_clock; nst++) {
+		   exec_next();
+		 }
    }
 
    ++mainLoop.nCounter;
@@ -2076,7 +2078,8 @@ function on_help_change() {
 <button type="button" onclick="zero_mem();">Zero Memory</button>
 <button type="button" onclick="load_prog();">Load Program</button>
 <button type="button" onclick="cpu_reset();">Reset</button>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;
+<input type="text" id="steps_per_clock" value="1" size="1">
 <button type="button" onclick="run_stop();" id="RunStop">Run/<u>Stop</u></button>
 <button type="button" onclick="step();">Step</button>
 &nbsp;&nbsp;&nbsp;
