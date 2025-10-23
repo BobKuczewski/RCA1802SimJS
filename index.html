@@ -1351,6 +1351,7 @@ function exec_next() {
 		} else if (op_code == 0x73) { // STXD Store Via X and Decrement
 			mem[rr[rx]] = rd;
 			rr[rx] += -1;
+			if (rr[rx] < 0) rr[rx] = rr[rx] & 0xFFFF;
 			rr[rp] += 1;
 		} else if (op_code == 0x74) { // ADC Add with Carry
 			v = mem[rr[rx]] + rd + rdf;
